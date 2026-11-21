@@ -7,7 +7,7 @@
         AllowsTransparency="True"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Icon="Assets/icon.png"
+        Icon="Assets/icon.ico"
         Background="#FF0B0E14"
         TextOptions.TextFormattingMode="Display">
 

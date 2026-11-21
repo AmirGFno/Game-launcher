@@ -16,7 +16,7 @@
     <Product>GFno Launcher</Product>
     <Title>GFno Launcher</Title>
     <Description>A minimalist, PlayStation-5-style Windows game launcher.</Description>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Copyright>GFno</Copyright>
     <Company>GFno</Company>
   </PropertyGroup>
@@ -27,11 +27,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Referenced as loose files by XAML (window icon / title-bar icon) and by the
-         Inno Setup script, so they must be copied next to the published executable.
-         Update the SDK's auto-generated None item rather than adding a duplicate. -->
-    <None Update="Assets\icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets\icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- MainWindow.xaml references these with relative URIs ("Assets/icon.png").
+         WPF resolves those against the XAML file's pack URI, i.e.
+         pack://application:,,,/Assets/icon.png - so the files MUST be embedded as
+         WPF resources. Left as None/Content (loose files next to the exe) the lookup
+         fails at startup with:
+           TypeConverterMarkupExtension ... InnerException: IOException:
+           Cannot locate resource 'assets/icon.png'.
+         The .ico stays a plain file on disk too, because Inno Setup and the
+         ApplicationIcon compiler step read it from the project directory. -->
+    <None Remove="Assets\icon.png;Assets\icon.ico" />
+    <Resource Include="Assets\icon.png" />
+    <Resource Include="Assets\icon.ico" />
   </ItemGroup>
 
 </Project>

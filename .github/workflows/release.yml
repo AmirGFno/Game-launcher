@@ -31,6 +31,47 @@ jobs:
           -p:PublishSingleFile=true
           -o "${{ github.workspace }}/publish"
 
+      # ---- Regression guard ------------------------------------------------
+      # MainWindow.xaml references its images with relative URIs, which WPF resolves
+      # to pack://application:,,,/Assets/... . If the images are not embedded as WPF
+      # resources the app still builds fine but dies on startup with
+      # "TypeConverterMarkupExtension ... Cannot locate resource 'assets/icon.png'".
+      # This step fails the build when the resources are missing.
+      - name: Verify embedded WPF resources
+        run: |
+          dotnet build -c Release --nologo -v minimal
+          $dll = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\bin" -Filter "GFnoLauncher.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) {
+            Write-Host "##[error]GFnoLauncher.dll was not found under bin/."
+            exit 1
+          }
+          Write-Host "Checking embedded resources in: $($dll.FullName)"
+          $assembly = [System.Reflection.Assembly]::LoadFile($dll.FullName)
+          $manifest = @($assembly.GetManifestResourceNames() | Where-Object { $_ -like "*.g.resources" })
+          if ($manifest.Count -eq 0) {
+            Write-Host "##[error]No .g.resources manifest found in the assembly."
+            exit 1
+          }
+          $stream = $assembly.GetManifestResourceStream($manifest[0])
+          if (-not $stream) {
+            Write-Host "##[error]Could not open the .g.resources stream."
+            exit 1
+          }
+          $reader = New-Object System.Resources.ResourceReader($stream)
+          $names = @{}
+          $enumerator = $reader.GetEnumerator()
+          while ($enumerator.MoveNext()) { $names[[string]$enumerator.Key] = $true }
+          $reader.Close()
+          foreach ($required in @("assets/icon.png", "assets/icon.ico")) {
+            $match = $names.Keys | Where-Object { $_ -ieq $required } | Select-Object -First 1
+            if (-not $match) {
+              Write-Host "##[error]Missing embedded WPF resource: $required"
+              $names.Keys | ForEach-Object { Write-Host "    found: $_" }
+              exit 1
+            }
+            Write-Host "OK embedded resource: $match"
+          }
+
       # ---- Portable build -------------------------------------------------
       - name: Create ZIP archive (portable)
         run: Compress-Archive -Path "${{ github.workspace }}/publish/*" -DestinationPath "${{ github.workspace }}/GameLauncher.zip"
