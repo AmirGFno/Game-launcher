@@ -73,12 +73,21 @@ jobs:
 
           $out = & $iscc "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
           $code = $LASTEXITCODE
-          $out | Out-File -FilePath "$env:GITHUB_WORKSPACE\iscc.log" -Encoding utf8
-          $out | ForEach-Object { Write-Host $_ }
+          $text = $out | Out-String
+          [System.IO.File]::WriteAllText("$env:GITHUB_WORKSPACE\iscc.log", $text)
+
+          # Surface the whole compiler output through annotations (chunked + base64)
+          # so the failure reason is readable from the run summary.
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))
+          Write-Host "##[error]ISCC exit code: $code ; output bytes: $($text.Length)"
+          $i = 0
+          while ($i -lt $b64.Length) {
+            $chunk = $b64.Substring($i, [Math]::Min(240, $b64.Length - $i))
+            Write-Host "##[error]LOG $i $chunk"
+            $i += 240
+          }
 
           if ($code -ne 0) {
-            Write-Host "##[error]Inno Setup failed with exit code $code"
-            $out | ForEach-Object { Write-Host "##[error]$_" }
             exit 1
           }
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\GameLauncherSetup.exe")) {
