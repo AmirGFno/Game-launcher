@@ -115,7 +115,7 @@ public partial class MainWindow : Window
         BackgroundImage.Opacity = 0;
     }
 
-    private static async Task FadeAsync(double to)
+    private async Task FadeAsync(double to)
     {
         if (Math.Abs(BackgroundImageOpacity - to) < 0.01)
         {
