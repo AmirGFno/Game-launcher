@@ -1,0 +1,102 @@
+<Window x:Class="GameLauncher.Views.GameEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding WindowTitle}"
+        Width="680" Height="600"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF12161F"
+        Foreground="White"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Binding WindowTitle}" FontSize="26" FontWeight="SemiBold" />
+
+        <Grid Grid.Row="1" Margin="0,24,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Title -->
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Game Title *" Style="{StaticResource FieldLabelStyle}" />
+            <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                     Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource FieldTextBoxStyle}" />
+
+            <!-- Launch target -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Launch Target *" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,0" />
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Text="{Binding LaunchTarget, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource FieldTextBoxStyle}" Margin="0,16,0,0" />
+            <Button Grid.Row="1" Grid.Column="2" Content="Browse..."
+                    Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseLaunchTargetCommand}"
+                    Width="96" Margin="12,16,0,0" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text="An .exe path or a Steam URL, e.g. steam://rungameid/12345"
+                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
+
+            <!-- Logo -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Logo Image" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,0" />
+            <TextBox Grid.Row="2" Grid.Column="1"
+                     Text="{Binding LogoPath, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource FieldTextBoxStyle}" Margin="0,16,0,0" />
+            <Button Grid.Row="2" Grid.Column="2" Content="Browse..."
+                    Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseLogoCommand}"
+                    Width="96" Margin="12,16,0,0" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text=".ico, .png or .jpg - shown in the carousel"
+                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
+
+            <!-- Background -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Background Image" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,0" />
+            <TextBox Grid.Row="3" Grid.Column="1"
+                     Text="{Binding BackgroundPath, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource FieldTextBoxStyle}" Margin="0,16,0,0" />
+            <Button Grid.Row="3" Grid.Column="2" Content="Browse..."
+                    Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseBackgroundCommand}"
+                    Width="96" Margin="12,16,0,0" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text=".png or .jpg - full screen background of the selected game"
+                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
+
+            <!-- Custom cache folder -->
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Custom Game Cache Folder" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,0" />
+            <TextBox Grid.Row="4" Grid.Column="1"
+                     Text="{Binding CustomCacheFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource FieldTextBoxStyle}" Margin="0,16,0,0" />
+            <Button Grid.Row="4" Grid.Column="2" Content="Browse..."
+                    Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseCacheFolderCommand}"
+                    Width="96" Margin="12,16,0,0" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text="Optional - its contents are deleted before every launch"
+                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="{Binding Error}" FontSize="13" Foreground="#FFFF6B6B"
+                   VerticalAlignment="Center" TextWrapping="Wrap" MinHeight="20" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancel" Style="{StaticResource GhostButtonStyle}"
+                    Command="{Binding CancelCommand}" Width="110" Margin="0,0,12,0" />
+            <Button Content="Save" Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding SaveCommand}" Width="130" />
+        </StackPanel>
+    </Grid>
+</Window>
