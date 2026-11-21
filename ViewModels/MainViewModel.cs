@@ -14,6 +14,7 @@ public sealed class MainViewModel : ObservableObject
 
     private GameItem? _selectedGame;
     private bool _isCleaning;
+    private bool _isReordering;
     private string _statusMessage = string.Empty;
 
     public MainViewModel(
@@ -35,6 +36,8 @@ public sealed class MainViewModel : ObservableObject
         AddGameCommand = new RelayCommand(AddGame, () => !IsCleaning);
         EditGameCommand = new RelayCommand(EditGame, () => SelectedGame is not null && !IsCleaning);
         DeleteGameCommand = new RelayCommand(DeleteGame, () => SelectedGame is not null && !IsCleaning);
+        ToggleReorderCommand = new RelayCommand(() => IsReordering = !IsReordering,
+            () => SelectedGame is not null && !IsCleaning);
         CancelCommand = new RelayCommand(() => PlayCommand.Cancel());
 
         Games.CollectionChanged += (_, _) =>
@@ -55,11 +58,39 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedGame, value))
             {
+                if (value is null)
+                {
+                    // Nothing left to reorder.
+                    IsReordering = false;
+                }
+
                 OnPropertyChanged(nameof(HasSelection));
                 RefreshCommands();
             }
         }
     }
+
+    /// <summary>
+    /// While true, the Left/Right arrows (and the mouse wheel) move the selected
+    /// game within the library instead of browsing the selection.
+    /// </summary>
+    public bool IsReordering
+    {
+        get => _isReordering;
+        set
+        {
+            if (SetProperty(ref _isReordering, value))
+            {
+                OnPropertyChanged(nameof(ReorderHint));
+                RefreshCommands();
+            }
+        }
+    }
+
+    /// <summary>Bottom-centre hint; changes while reorder mode is active.</summary>
+    public string ReorderHint => IsReordering
+        ? "Reorder mode — ← / → move the selected game      Esc — done"
+        : "Enter / Double-click — Launch      Scroll — Browse";
 
     public bool IsCleaning
     {
@@ -92,6 +123,8 @@ public sealed class MainViewModel : ObservableObject
 
     public RelayCommand DeleteGameCommand { get; }
 
+    public RelayCommand ToggleReorderCommand { get; }
+
     public RelayCommand CancelCommand { get; }
 
     /// <summary>Moves the carousel selection one item to the right (wraps around).</summary>
@@ -118,6 +151,35 @@ public sealed class MainViewModel : ObservableObject
         GameItem? selected = SelectedGame;
         int index = selected is null ? 0 : Games.IndexOf(selected);
         SelectedGame = Games[(index - 1 + Games.Count) % Games.Count];
+    }
+
+    /// <summary>
+    /// Physically moves the selected game <paramref name="delta"/> positions in the
+    /// library (used by the arrow keys while reorder mode is active). The game stays
+    /// selected, so repeated presses keep walking it along the list.
+    /// </summary>
+    public void ReorderSelected(int delta)
+    {
+        if (SelectedGame is null || Games.Count < 2 || delta == 0)
+        {
+            return;
+        }
+
+        int index = Games.IndexOf(SelectedGame);
+        if (index < 0)
+        {
+            return;
+        }
+
+        int target = Math.Clamp(index + delta, 0, Games.Count - 1);
+        if (target == index)
+        {
+            return;
+        }
+
+        Games.Move(index, target);
+        SelectedGame = Games[target];
+        _ = PersistAsync();
     }
 
     private async Task LoadGamesAsync()
@@ -250,6 +312,7 @@ public sealed class MainViewModel : ObservableObject
         Games.Remove(SelectedGame);
 
         SelectedGame = Games.Count > 0 ? Games[Math.Min(index, Games.Count - 1)] : null;
+        IsReordering = false;
         _ = PersistAsync();
     }
 
@@ -271,5 +334,6 @@ public sealed class MainViewModel : ObservableObject
         AddGameCommand.RaiseCanExecuteChanged();
         EditGameCommand.RaiseCanExecuteChanged();
         DeleteGameCommand.RaiseCanExecuteChanged();
+        ToggleReorderCommand.RaiseCanExecuteChanged();
     }
 }
