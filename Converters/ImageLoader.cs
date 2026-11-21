@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows.Media.Imaging;
 
 namespace GameLauncher.Converters;
@@ -9,7 +10,12 @@ public static class ImageLoader
 {
     public static BitmapImage? Load(string? path)
     {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (!File.Exists(path))
         {
             return null;
         }
