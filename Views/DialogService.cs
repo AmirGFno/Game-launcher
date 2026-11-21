@@ -33,7 +33,9 @@ public sealed class DialogService : IDialogService
             ShowNewFolderButton = true
         };
 
-        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == DialogResult.OK
+        // FolderBrowserDialog is a WinForms dialog: its ShowDialog overload takes
+        // an IWin32Window rather than a WPF Window, so the parameterless overload is used.
+        return dialog.ShowDialog() == DialogResult.OK
             ? dialog.SelectedPath
             : null;
     }
