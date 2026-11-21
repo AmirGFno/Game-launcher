@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Windows.Media;
 using GameLauncher.Services;
 using Color = System.Windows.Media.Color;
+using ColorConverter = System.Windows.Media.ColorConverter;
 
 namespace GameLauncher.Models;
 
