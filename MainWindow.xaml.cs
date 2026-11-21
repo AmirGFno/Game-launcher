@@ -197,7 +197,7 @@ public partial class MainWindow : Window
 
     private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (IsInsideButton(e.OriginalSource))
+        if (IsInsideButton(e.OriginalSource as DependencyObject))
         {
             return;
         }
