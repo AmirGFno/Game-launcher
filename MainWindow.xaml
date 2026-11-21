@@ -249,7 +249,7 @@
                             <DataTemplate>
                                 <Grid Width="150" Height="150" Margin="10,0"
                                       ToolTip="{Binding Title}"
-                                      MouseDoubleClick="GameTile_MouseDoubleClick">
+                                      PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
                                     <Border CornerRadius="16"
                                             Background="#1FFFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
                                             Padding="14">

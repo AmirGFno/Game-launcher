@@ -29,10 +29,10 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 
+; Relative paths are resolved against this script's directory, so the compiled
+; installer lands next to setup.iss regardless of the caller's working directory.
 OutputDir=.
 OutputBaseFilename=GameLauncherSetup
-; Keep the icon relative so the compiled installer stays portable.
-OutputManifestFile=setup-manifest.txt
 
 Compression=lzma2/max
 SolidCompression=yes

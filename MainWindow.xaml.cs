@@ -248,10 +248,14 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Double-clicking a tile launches that game.</summary>
-    private void GameTile_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// Double-clicking a tile launches that game. The click count is used instead of a
+    /// <c>MouseDoubleClick</c> handler because that event lives on <c>Control</c>, and a
+    /// plain <c>Grid</c> is not a <c>Control</c>.
+    /// </summary>
+    private void GameTile_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left || _viewModel.IsCleaning)
+        if (e.ChangedButton != MouseButton.Left || e.ClickCount < 2 || _viewModel.IsCleaning)
         {
             return;
         }

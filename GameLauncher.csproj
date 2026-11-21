@@ -28,10 +28,10 @@
 
   <ItemGroup>
     <!-- Referenced as loose files by XAML (window icon / title-bar icon) and by the
-         Inno Setup script, so they must exist next to the published executable. -->
-    <Content Include="Assets\icon.ico" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Assets\icon.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Remove="Assets\icon.ico;Assets\icon.png" />
+         Inno Setup script, so they must be copied next to the published executable.
+         Update the SDK's auto-generated None item rather than adding a duplicate. -->
+    <None Update="Assets\icon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
