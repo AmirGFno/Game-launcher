@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <UseWPF>true</UseWPF>
+    <!-- FolderBrowserDialog (System.Windows.Forms) is used to pick the optional game cache folder. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>GameLauncher</RootNamespace>
+    <AssemblyName>GameLauncher</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+</Project>
