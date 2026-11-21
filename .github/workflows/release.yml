@@ -23,21 +23,13 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish self-contained single-file executable
-        continue-on-error: true
-        run: |
-          $out = dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "$env:GITHUB_WORKSPACE/publish" 2>&1
-          $code = $LASTEXITCODE
-          $text = $out | Out-String
-          Write-Host "PUBLISH EXIT CODE: $code"
-          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))
-          $i = 0
-          while ($i -lt $b64.Length) {
-            $chunk = $b64.Substring($i, [Math]::Min(240, $b64.Length - $i))
-            Write-Host "##[error]PUBLISH $i $chunk"
-            $i += 240
-          }
-          Write-Host "PUBLISH LOG LENGTH: $($b64.Length)"
-          if ($code -ne 0) { exit 1 }
+        run: >-
+          dotnet publish
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o "${{ github.workspace }}/publish"
 
       # ---- Regression guard ------------------------------------------------
       # MainWindow.xaml references its images with relative URIs, which WPF resolves
