@@ -94,61 +94,51 @@
                 </Setter>
             </Style>
 
-            <!-- ============ Toolbar button (top bar) ============ -->
-            <Style x:Key="ToolButtonStyle" TargetType="Button">
-                <Setter Property="Height" Value="36" />
-                <Setter Property="Padding" Value="16,0" />
-                <Setter Property="Background" Value="#59000000" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="18"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Opacity" Value="0.35" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- ============ Window chrome icon button ============ -->
-            <Style x:Key="HeaderButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="42" />
-                <Setter Property="Height" Value="36" />
+            <!-- ============ Bottom-left action button (icon only) ============ -->
+            <Style x:Key="ActionButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Opacity" Value="0.55" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="6">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="1" />
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.18" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- ============ Window chrome button (min / max / close) ============ -->
+            <Style x:Key="ChromeButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="30" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Opacity" Value="0.6" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="1" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <!-- ============ Primary (accent) button ============ -->

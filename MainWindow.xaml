@@ -11,18 +11,18 @@
         Background="#FF0B0E14"
         TextOptions.TextFormattingMode="Display">
 
-    <Grid>
-
-        <!-- ============ Dynamic background: cross-fade + slow Ken Burns zoom ============ -->
-        <Image x:Name="BackgroundImage"
-               Stretch="UniformToFill"
-               Opacity="0"
-               RenderTransformOrigin="0.5,0.5"
-               RenderOptions.BitmapScalingMode="HighQuality">
-            <Image.RenderTransform>
-                <ScaleTransform ScaleX="1" ScaleY="1" />
-            </Image.RenderTransform>
-            <Image.Triggers>
+    <Window.Resources>
+        <!-- Slow Ken Burns zoom, applied to both cross-fading background layers. -->
+        <Style x:Key="KenBurnsImageStyle" TargetType="Image">
+            <Setter Property="Stretch" Value="UniformToFill" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
                 <EventTrigger RoutedEvent="Image.Loaded">
                     <BeginStoryboard>
                         <Storyboard RepeatBehavior="Forever" AutoReverse="True">
@@ -33,8 +33,15 @@
                         </Storyboard>
                     </BeginStoryboard>
                 </EventTrigger>
-            </Image.Triggers>
-        </Image>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+
+        <!-- ============ Background: two layers cross-fade, so there is no dark flash ============ -->
+        <Image x:Name="BackgroundBack" Style="{StaticResource KenBurnsImageStyle}" Opacity="1" />
+        <Image x:Name="BackgroundFront" Style="{StaticResource KenBurnsImageStyle}" Opacity="0" />
 
         <!-- ============ Bottom-to-top readability gradient ============ -->
         <Rectangle>
@@ -59,41 +66,35 @@
                   Background="#1F000000"
                   MouseLeftButtonDown="Header_MouseLeftButtonDown">
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="56,0,0,0">
-                    <Image Source="Assets/icon.png" Width="22" Height="22"
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="48,0,0,0">
+                    <Image Source="Assets/icon.png" Width="20" Height="20"
                            RenderOptions.BitmapScalingMode="HighQuality" />
                     <TextBlock Text="GFno Launcher"
-                               FontSize="15" FontWeight="SemiBold" Foreground="White"
-                               VerticalAlignment="Center" Margin="14,0,0,0" />
+                               FontSize="14" FontWeight="SemiBold" Foreground="White"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
                     <TextBlock Text="{Binding Games.Count, StringFormat='{}{0} game(s)'}"
                                FontSize="12" Foreground="#FF8FA0BC"
-                               VerticalAlignment="Center" Margin="18,0,0,0" />
+                               VerticalAlignment="Center" Margin="16,0,0,0" />
                 </StackPanel>
 
+                <!-- Minimal window chrome: no backgrounds, just thin 16x16 glyphs -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                            HorizontalAlignment="Right" Margin="0,0,24,0">
-                    <Button Content="Add" Style="{StaticResource ToolButtonStyle}"
-                            Command="{Binding AddGameCommand}" Margin="0,0,8,0" />
-                    <Button Content="Edit" Style="{StaticResource ToolButtonStyle}"
-                            Command="{Binding EditGameCommand}" Margin="0,0,8,0" />
-                    <Button Content="Delete" Style="{StaticResource ToolButtonStyle}"
-                            Command="{Binding DeleteGameCommand}" Margin="0,0,28,0" />
-
-                    <Button Style="{StaticResource HeaderButtonStyle}" ToolTip="Minimize"
+                            HorizontalAlignment="Right" Margin="0,0,18,0">
+                    <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Minimize"
                             Click="MinimizeButton_Click">
-                        <Path Data="M6,15 L20,15 L20,17 L6,17 Z" Stroke="White" StrokeThickness="1"
-                              Width="26" Height="16" Stretch="Uniform" Fill="White" StrokeLineJoin="Miter" />
+                        <Path Data="M3,12.5 H13" Stroke="White" StrokeThickness="1.2"
+                              Width="16" Height="16" Stretch="Uniform" />
                     </Button>
-                    <Button Style="{StaticResource HeaderButtonStyle}" ToolTip="Maximize"
+                    <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Maximize"
                             Click="MaximizeButton_Click">
-                        <Path x:Name="MaximizeIcon" Data="M6,6 H20 V20 H6 Z" Stroke="White"
-                              StrokeThickness="1.6" Fill="Transparent"
-                              Width="26" Height="26" Stretch="Uniform" />
+                        <Path x:Name="MaximizeIcon" Data="M3,3 H13 V13 H3 Z" Stroke="White"
+                              StrokeThickness="1.2" Fill="Transparent"
+                              Width="16" Height="16" Stretch="Uniform" />
                     </Button>
-                    <Button Style="{StaticResource HeaderButtonStyle}" ToolTip="Close"
+                    <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Close"
                             Click="CloseButton_Click">
-                        <Path Data="M7,7 L21,21 M21,7 L7,21" Stroke="White" StrokeThickness="1.6"
-                              Width="26" Height="26" Stretch="Uniform" />
+                        <Path Data="M4,4 L12,12 M12,4 L4,12" Stroke="White" StrokeThickness="1.2"
+                              Width="16" Height="16" Stretch="Uniform" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -110,39 +111,36 @@
                 <Grid Grid.Row="0"
                       Visibility="{Binding HasGames, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Grid Width="88" Height="88">
+                        <Grid Width="84" Height="84">
                             <Ellipse Stroke="#FF2D9CDB" StrokeThickness="2.5" Fill="Transparent" Opacity="0.75" />
-                            <Path Data="M34,24 L64,44 L34,64 Z" Fill="#FF2D9CDB" />
+                            <Path Data="M42,28 V56 M28,42 H56" Stroke="#FF2D9CDB" StrokeThickness="3"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                         </Grid>
-                        <TextBlock Text="Your library is empty" FontSize="22" Foreground="White"
+                        <TextBlock Text="Your library is empty" FontSize="20" Foreground="White"
                                    HorizontalAlignment="Center" Margin="0,20,0,6" />
-                        <TextBlock Text="Use the Add button to add your first game."
+                        <TextBlock Text="Use the + button to add your first game."
                                    FontSize="13" Foreground="#FFB8C4D8" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Grid>
 
-                <!-- Title, just above the carousel -->
+                <!-- Title, just above the carousel (the .exe path is deliberately not shown) -->
                 <StackPanel x:Name="TitlePanel"
                             Grid.Row="1"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,0,22"
+                            Margin="0,0,0,20"
                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel.RenderTransform>
                         <TranslateTransform Y="14" />
                     </StackPanel.RenderTransform>
                     <TextBlock Text="{Binding SelectedGame.Title}"
-                               FontSize="30" FontWeight="SemiBold" Foreground="White"
+                               FontSize="22" FontWeight="SemiBold" Foreground="White"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                MaxWidth="900" TextWrapping="Wrap">
                         <TextBlock.Effect>
-                            <DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="Black" Opacity="0.8" />
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="Black" Opacity="0.8" />
                         </TextBlock.Effect>
                     </TextBlock>
-                    <TextBlock Text="{Binding SelectedGame.LaunchTarget}"
-                               FontSize="12" Foreground="#FFB8C4D8"
-                               HorizontalAlignment="Center" TextAlignment="Center"
-                               Margin="0,6,0,0" MaxWidth="820" TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!-- ============ Carousel of game logos ============ -->
@@ -152,14 +150,37 @@
                              SelectedItem="{Binding SelectedGame, Mode=TwoWay}"
                              Background="Transparent"
                              BorderThickness="0"
+                             Padding="0"
                              FocusVisualStyle="{x:Null}"
+                             ClipToBounds="False"
                              ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
                              ScrollViewer.CanContentScroll="False"
                              PreviewMouseWheel="GamesListBox_PreviewMouseWheel">
+
+                        <!-- ScrollViewer must not clip the scaled-up selected tile. -->
+                        <ListBox.Template>
+                            <ControlTemplate TargetType="ListBox">
+                                <Border Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        Padding="{TemplateBinding Padding}"
+                                        ClipToBounds="False">
+                                    <ScrollViewer ClipToBounds="False"
+                                                  Focusable="False"
+                                                  HorizontalScrollBarVisibility="Hidden"
+                                                  VerticalScrollBarVisibility="Disabled"
+                                                  CanContentScroll="False">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </ControlTemplate>
+                        </ListBox.Template>
+
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                            ClipToBounds="False" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
 
@@ -169,17 +190,18 @@
                                 <Setter Property="BorderThickness" Value="0" />
                                 <Setter Property="HorizontalAlignment" Value="Center" />
                                 <Setter Property="VerticalAlignment" Value="Center" />
+                                <Setter Property="ClipToBounds" Value="False" />
                                 <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
                                 <Setter Property="RenderTransform">
                                     <Setter.Value>
-                                        <ScaleTransform ScaleX="0.85" ScaleY="0.85" />
+                                        <ScaleTransform ScaleX="0.8" ScaleY="0.8" />
                                     </Setter.Value>
                                 </Setter>
-                                <Setter Property="Opacity" Value="0.45" />
-                                <!-- The glow exists for every tile but stays invisible until selected. -->
+                                <Setter Property="Opacity" Value="0.5" />
+                                <!-- Pulsing accent glow behind the selected logo (invisible otherwise). -->
                                 <Setter Property="Effect">
                                     <Setter.Value>
-                                        <DropShadowEffect BlurRadius="28" ShadowDepth="0"
+                                        <DropShadowEffect BlurRadius="26" ShadowDepth="0"
                                                           Color="#FF2D9CDB" Opacity="0" />
                                     </Setter.Value>
                                 </Setter>
@@ -192,30 +214,31 @@
                                 </Setter>
                                 <Style.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
+                                        <!-- Render above the neighbours instead of being cut off. -->
+                                        <Setter Property="Panel.ZIndex" Value="1" />
                                         <Setter Property="Opacity" Value="1" />
                                         <Trigger.EnterActions>
-                                            <!-- Spring-like pop with a soft overshoot -->
+                                            <!-- Smooth spring-like scale up -->
                                             <BeginStoryboard>
                                                 <Storyboard>
                                                     <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                                     To="1.2" Duration="0:0:0.34">
+                                                                     To="1.2" Duration="0:0:0.32">
                                                         <DoubleAnimation.EasingFunction>
-                                                            <BackEase Amplitude="0.55" EasingMode="EaseOut" />
+                                                            <CubicEase EasingMode="EaseOut" />
                                                         </DoubleAnimation.EasingFunction>
                                                     </DoubleAnimation>
                                                     <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                     To="1.2" Duration="0:0:0.34">
+                                                                     To="1.2" Duration="0:0:0.32">
                                                         <DoubleAnimation.EasingFunction>
-                                                            <BackEase Amplitude="0.55" EasingMode="EaseOut" />
+                                                            <CubicEase EasingMode="EaseOut" />
                                                         </DoubleAnimation.EasingFunction>
                                                     </DoubleAnimation>
                                                 </Storyboard>
                                             </BeginStoryboard>
-                                            <!-- Subtle pulsing glow behind the selected logo -->
                                             <BeginStoryboard>
                                                 <Storyboard RepeatBehavior="Forever" AutoReverse="True">
                                                     <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
-                                                                     From="0.25" To="0.7" Duration="0:0:1.6" />
+                                                                     From="0.2" To="0.6" Duration="0:0:1.6" />
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </Trigger.EnterActions>
@@ -223,15 +246,15 @@
                                             <BeginStoryboard>
                                                 <Storyboard>
                                                     <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                                     To="0.85" Duration="0:0:0.26">
+                                                                     To="0.8" Duration="0:0:0.26">
                                                         <DoubleAnimation.EasingFunction>
-                                                            <QuadraticEase EasingMode="EaseOut" />
+                                                            <CubicEase EasingMode="EaseInOut" />
                                                         </DoubleAnimation.EasingFunction>
                                                     </DoubleAnimation>
                                                     <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                     To="0.85" Duration="0:0:0.26">
+                                                                     To="0.8" Duration="0:0:0.26">
                                                         <DoubleAnimation.EasingFunction>
-                                                            <QuadraticEase EasingMode="EaseOut" />
+                                                            <CubicEase EasingMode="EaseInOut" />
                                                         </DoubleAnimation.EasingFunction>
                                                     </DoubleAnimation>
                                                 </Storyboard>
@@ -247,70 +270,31 @@
 
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Width="150" Height="150" Margin="10,0"
+                                <!-- Raw image, no border / box. Rounded through Image.Clip. -->
+                                <Grid Width="120" Height="120" Margin="8,0"
+                                      ClipToBounds="False"
                                       ToolTip="{Binding Title}"
                                       PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
-                                    <Border CornerRadius="16"
-                                            Background="#1FFFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
-                                            Padding="14">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-                                                <Setter Property="RenderTransform">
-                                                    <Setter.Value>
-                                                        <TranslateTransform Y="0" />
-                                                    </Setter.Value>
-                                                </Setter>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="BorderBrush" Value="#FF2D9CDB" />
-                                                        <Setter Property="Background" Value="#33FFFFFF" />
-                                                        <Setter Property="Effect">
-                                                            <Setter.Value>
-                                                                <DropShadowEffect BlurRadius="22" ShadowDepth="0"
-                                                                                  Color="#FF2D9CDB" Opacity="0.6" />
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                        <Trigger.EnterActions>
-                                                            <BeginStoryboard>
-                                                                <Storyboard>
-                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y"
-                                                                                     To="-6" Duration="0:0:0.18">
-                                                                        <DoubleAnimation.EasingFunction>
-                                                                            <QuadraticEase EasingMode="EaseOut" />
-                                                                        </DoubleAnimation.EasingFunction>
-                                                                    </DoubleAnimation>
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </Trigger.EnterActions>
-                                                        <Trigger.ExitActions>
-                                                            <BeginStoryboard>
-                                                                <Storyboard>
-                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y"
-                                                                                     To="0" Duration="0:0:0.24">
-                                                                        <DoubleAnimation.EasingFunction>
-                                                                            <QuadraticEase EasingMode="EaseOut" />
-                                                                        </DoubleAnimation.EasingFunction>
-                                                                    </DoubleAnimation>
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </Trigger.ExitActions>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
+                                    <Image Source="{Binding LogoPath, Converter={StaticResource ImagePathConverter}}"
+                                           Stretch="UniformToFill"
+                                           ClipToBounds="False"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Clip>
+                                            <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />
+                                        </Image.Clip>
+                                        <Image.Effect>
+                                            <DropShadowEffect BlurRadius="22" ShadowDepth="0"
+                                                              Color="Black" Opacity="0.55" />
+                                        </Image.Effect>
+                                    </Image>
 
-                                        <Grid>
-                                            <Image Source="{Binding LogoPath, Converter={StaticResource ImagePathConverter}}"
-                                                   Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality" />
-                                            <Grid Width="64" Height="64"
-                                                  Visibility="{Binding LogoPath, Converter={StaticResource EmptyStringToVisibilityConverter}}">
-                                                <Ellipse Stroke="#FF3A4763" StrokeThickness="2" Fill="Transparent" />
-                                                <Path Data="M26,18 L50,32 L26,46 Z" Fill="#FF3A4763" />
-                                            </Grid>
-                                        </Grid>
-                                    </Border>
+                                    <!-- Fallback glyph when the game has no logo -->
+                                    <Grid Width="56" Height="56"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Visibility="{Binding LogoPath, Converter={StaticResource EmptyStringToVisibilityConverter}}">
+                                        <Ellipse Stroke="#FF3A4763" StrokeThickness="2" Fill="Transparent" />
+                                        <Path Data="M22,16 L40,28 L22,40 Z" Fill="#FF3A4763" />
+                                    </Grid>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -329,6 +313,26 @@
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
+
+        <!-- ============ Bottom-left actions: Add / Edit / Delete (icon only) ============ -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                    Margin="28,0,0,28">
+            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Add game"
+                    Command="{Binding AddGameCommand}" Margin="0,0,10,0">
+                <Path Data="M7,3 H9 V7 H13 V9 H9 V13 H7 V9 H3 V7 H7 Z" Fill="#FFFFFFFF"
+                      Width="16" Height="16" Stretch="Uniform" />
+            </Button>
+            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Edit selected game"
+                    Command="{Binding EditGameCommand}" Margin="0,0,10,0">
+                <Path Data="M2,11.5 V14 H4.5 L11.87,6.63 L9.37,4.13 Z M13.8,4.69 C14.06,4.43 14.06,4.01 13.8,3.75 L12.24,2.19 C11.98,1.93 11.56,1.93 11.3,2.19 L10.08,3.41 L12.58,5.91 Z"
+                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" />
+            </Button>
+            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Delete selected game"
+                    Command="{Binding DeleteGameCommand}">
+                <Path Data="M4,12.7 C4,13.4 4.6,14 5.3,14 H10.7 C11.4,14 12,13.4 12,12.7 V4.7 H4 Z M12.7,2.7 H10.3 L9.7,2 H6.3 L5.7,2.7 H3.3 V4 H12.7 Z"
+                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" />
+            </Button>
+        </StackPanel>
 
         <!-- ============ Hint ============ -->
         <TextBlock VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,34"

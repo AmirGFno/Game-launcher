@@ -12,13 +12,14 @@ namespace GameLauncher;
 
 public partial class MainWindow : Window
 {
-    private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(280));
-    private static readonly Duration TitleAnimationDuration = new(TimeSpan.FromMilliseconds(340));
+    private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(240));
+    private static readonly Duration TitleAnimationDuration = new(TimeSpan.FromMilliseconds(320));
 
     private readonly MainViewModel _viewModel;
-    private readonly SemaphoreSlim _fadeGate = new(1, 1);
-    private readonly SemaphoreSlim _titleGate = new(1, 1);
     private readonly DispatcherTimer _spinnerTimer;
+
+    // The two background layers: exactly one is on top (the last one faded in).
+    private System.Windows.Controls.Image _frontLayer = null!;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -43,8 +44,15 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // The first background is shown without a transition.
+        _frontLayer = BackgroundBack;
         ShowInitialBackground(_viewModel.SelectedGame?.BackgroundPath);
+
+        // The library may already have loaded (and selected a game) before the
+        // window subscribed, so animate the title here as well.
+        if (_viewModel.SelectedGame is not null)
+        {
+            AnimateTitle();
+        }
 
         UpdateMaximizeIcon();
         _spinnerTimer.Start();
@@ -56,20 +64,20 @@ public partial class MainWindow : Window
         _spinnerTimer.Stop();
     }
 
-    private async void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    /// <summary>
+    /// Selection changed: start the new transition immediately. Nothing is queued -
+    /// a previously running fade/title animation is simply replaced, so rapid
+    /// Left/Right navigation never falls behind the actual selection.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(MainViewModel.SelectedGame))
         {
             return;
         }
 
-        string? path = _viewModel.SelectedGame?.BackgroundPath;
-
-        // Background cross-fade and title slide-in run side by side.
-        Task backgroundTransition = FadeBackgroundAsync(path);
-        Task titleTransition = AnimateTitleAsync();
-
-        await Task.WhenAll(backgroundTransition, titleTransition);
+        CrossFadeBackground(_viewModel.SelectedGame?.BackgroundPath);
+        AnimateTitle();
 
         if (_viewModel.SelectedGame is not null)
         {
@@ -80,63 +88,68 @@ public partial class MainWindow : Window
     #region Background transitions
 
     /// <summary>
-    /// Fades the current background out, swaps the image and fades the new one in.
-    /// A gate makes sure overlapping selection changes do not fight each other.
+    /// True cross-fade between the two background layers, so the screen never goes
+    /// dark between games. Interruptible: starting a new fade replaces whatever the
+    /// previous one was doing, from the opacity values it reached so far.
     /// </summary>
-    private async Task FadeBackgroundAsync(string? path)
+    private void CrossFadeBackground(string? path)
     {
-        await _fadeGate.WaitAsync();
+        System.Windows.Controls.Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
+        System.Windows.Controls.Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
 
-        try
+        // Capture the values the previous animation reached before clearing it.
+        double incomingFrom = incoming.Opacity;
+        double outgoingFrom = outgoing.Opacity;
+
+        incoming.BeginAnimation(UIElement.OpacityProperty, null);
+        outgoing.BeginAnimation(UIElement.OpacityProperty, null);
+
+        incoming.Source = ImageLoader.Load(path);
+        incoming.Opacity = incomingFrom;
+        outgoing.Opacity = outgoingFrom;
+
+        // The layer that fades in must render on top of the one fading out.
+        System.Windows.Controls.Panel.SetZIndex(incoming, 1);
+        System.Windows.Controls.Panel.SetZIndex(outgoing, 0);
+
+        var storyboard = new Storyboard();
+
+        var fadeIn = new DoubleAnimation(incomingFrom, 1, FadeDuration)
         {
-            await FadeAsync(0);
-            SetBackground(path);
-            await FadeAsync(1);
-        }
-        finally
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(fadeIn, incoming);
+        Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
+
+        var fadeOut = new DoubleAnimation(outgoingFrom, 0, FadeDuration)
         {
-            _fadeGate.Release();
-        }
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(fadeOut, outgoing);
+        Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
+
+        storyboard.Children.Add(fadeIn);
+        storyboard.Children.Add(fadeOut);
+        storyboard.Begin();
+
+        _frontLayer = incoming;
     }
 
     /// <summary>Shows the very first background without any transition.</summary>
     private void ShowInitialBackground(string? path)
     {
-        BackgroundImage.BeginAnimation(UIElement.OpacityProperty, null);
-        BackgroundImage.Source = ImageLoader.Load(path);
-        BackgroundImage.Opacity = 1;
+        BackgroundBack.BeginAnimation(UIElement.OpacityProperty, null);
+        BackgroundFront.BeginAnimation(UIElement.OpacityProperty, null);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 0);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 0);
+
+        BackgroundBack.Source = ImageLoader.Load(path);
+        BackgroundBack.Opacity = 1;
+        BackgroundFront.Source = null;
+        BackgroundFront.Opacity = 0;
+
+        _frontLayer = BackgroundBack;
     }
-
-    /// <summary>Swaps the image while it is invisible (opacity 0).</summary>
-    private void SetBackground(string? path)
-    {
-        BackgroundImage.BeginAnimation(UIElement.OpacityProperty, null);
-        BackgroundImage.Source = ImageLoader.Load(path);
-        BackgroundImage.Opacity = 0;
-    }
-
-    private async Task FadeAsync(double to)
-    {
-        if (Math.Abs(BackgroundImageOpacity - to) < 0.01)
-        {
-            return;
-        }
-
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var animation = new DoubleAnimation(BackgroundImageOpacity, to, FadeDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
-        };
-
-        animation.Completed += (_, _) => completion.TrySetResult(true);
-        BackgroundImage.BeginAnimation(UIElement.OpacityProperty, animation);
-
-        // The Completed event is reliable, but never let a transition deadlock the UI.
-        await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMilliseconds(800)));
-    }
-
-    private double BackgroundImageOpacity => BackgroundImage.Opacity;
 
     #endregion
 
@@ -144,55 +157,40 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Slides the title up into place with a soft fade whenever the selection changes.
+    /// Starts from the values a previous animation reached, so interrupting it mid-way
+    /// does not make the title jump.
     /// </summary>
-    private async Task AnimateTitleAsync()
+    private void AnimateTitle()
     {
-        await _titleGate.WaitAsync();
+        double opacityFrom = TitlePanel.Opacity;
 
-        try
+        TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
+        TitlePanel.Opacity = opacityFrom;
+
+        var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
+        double offsetFrom = transform.Y;
+        transform.Y = offsetFrom;
+        TitlePanel.RenderTransform = transform;
+
+        var storyboard = new Storyboard();
+
+        var fade = new DoubleAnimation(opacityFrom, 1, TitleAnimationDuration)
         {
-            TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
-            TitlePanel.Opacity = 0;
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTarget(fade, TitlePanel);
+        Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
 
-            var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
-            transform.Y = 14;
-            TitlePanel.RenderTransform = transform;
-
-            var storyboard = new Storyboard();
-
-            var fade = new DoubleAnimation(0, 1, TitleAnimationDuration)
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-            };
-            Storyboard.SetTarget(fade, TitlePanel);
-            Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
-
-            var slide = new DoubleAnimation(14, 0, TitleAnimationDuration)
-            {
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-            };
-            Storyboard.SetTarget(slide, TitlePanel);
-            Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
-
-            storyboard.Children.Add(fade);
-            storyboard.Children.Add(slide);
-
-            await RunStoryboardAsync(storyboard);
-        }
-        finally
+        var slide = new DoubleAnimation(offsetFrom, 0, TitleAnimationDuration)
         {
-            _titleGate.Release();
-        }
-    }
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTarget(slide, TitlePanel);
+        Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
 
-    private static async Task RunStoryboardAsync(Storyboard storyboard)
-    {
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        storyboard.Completed += (_, _) => completion.TrySetResult(true);
+        storyboard.Children.Add(fade);
+        storyboard.Children.Add(slide);
         storyboard.Begin();
-
-        await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMilliseconds(900)));
     }
 
     #endregion
@@ -349,19 +347,17 @@ public partial class MainWindow : Window
 
     private void UpdateMaximizeIcon()
     {
-            if (MaximizeIcon is null)
-            {
-                return;
-            }
+        if (MaximizeIcon is null)
+        {
+            return;
+        }
 
-            // Restore the "restore" glyph once the window goes back to its
-            // normal size (the same shape doubles as the maximize glyph).
-
-        // Maximized = two overlapping squares (restore), normal = one square.
+        // Both glyphs are 16x16: a single square when normal, two overlapping
+        // squares (restore) when maximized.
         MaximizeIcon.Data = Geometry.Parse(
             WindowState == WindowState.Maximized
-                ? "M11,5 H19 V13 H17 V7 H11 Z M9,11 H17 V21 H9 Z"
-                : "M6,6 H20 V20 H6 Z");
+                ? "M6.5,3 H13 V9.5 H6.5 Z M3,6.5 H9.5 V13 H3 Z"
+                : "M3,3 H13 V13 H3 Z");
     }
 
     #endregion
