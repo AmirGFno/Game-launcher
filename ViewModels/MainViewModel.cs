@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Media;
 using GameLauncher.Models;
 using GameLauncher.Services;
+using Color = System.Windows.Media.Color;
 
 namespace GameLauncher.ViewModels;
 
