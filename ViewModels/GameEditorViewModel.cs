@@ -47,6 +47,8 @@ public sealed class GameEditorViewModel : ObservableObject
         BrowseLogoCommand = new RelayCommand(BrowseLogo);
         BrowseBackgroundCommand = new RelayCommand(BrowseBackground);
         BrowseCacheFolderCommand = new RelayCommand(BrowseCacheFolder);
+        DownloadLogoCommand = new AsyncRelayCommand(DownloadLogoAsync);
+        DownloadBackgroundCommand = new AsyncRelayCommand(DownloadBackgroundAsync);
     }
 
     /// <summary>Raised when the dialog should close. The event argument is the dialog result.</summary>
@@ -104,6 +106,12 @@ public sealed class GameEditorViewModel : ObservableObject
     public RelayCommand BrowseBackgroundCommand { get; }
 
     public RelayCommand BrowseCacheFolderCommand { get; }
+
+    /// <summary>Downloads the Logo URL currently in the text box.</summary>
+    public AsyncRelayCommand DownloadLogoCommand { get; }
+
+    /// <summary>Downloads the Background URL currently in the text box.</summary>
+    public AsyncRelayCommand DownloadBackgroundCommand { get; }
 
     private void Save()
     {
@@ -202,6 +210,41 @@ public sealed class GameEditorViewModel : ObservableObject
         if (!string.IsNullOrEmpty(folder))
         {
             CustomCacheFolderPath = folder;
+        }
+    }
+
+    private Task DownloadLogoAsync(CancellationToken cancellationToken)
+    {
+        return DownloadImageAsync(LogoPath, path =>
+        {
+            LogoPath = path;
+            _autoLogo = null;
+        }, cancellationToken);
+    }
+
+    private Task DownloadBackgroundAsync(CancellationToken cancellationToken)
+    {
+        return DownloadImageAsync(BackgroundPath, path => BackgroundPath = path, cancellationToken);
+    }
+
+    /// <summary>
+    /// The user pastes a direct image URL into the field and presses Download; the
+    /// image is fetched asynchronously and the field is replaced with the local path.
+    /// </summary>
+    private async Task DownloadImageAsync(string? url, Action<string> setPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string savedPath = await ImageDownloader.DownloadAsync(url, cancellationToken).ConfigureAwait(true);
+            setPath(savedPath);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled - nothing to report.
+        }
+        catch (Exception ex)
+        {
+            _dialog.ShowError("Download failed", ex.Message);
         }
     }
 }

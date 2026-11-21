@@ -18,6 +18,9 @@ PlayStation-5-style carousel.
   title (falling back to the file name) and extracts the embedded icon with
   `System.Drawing.Icon.ExtractAssociatedIcon`, storing it as a PNG in
   `%LocalAppData%\GameLauncher\Icons`. Both fields stay fully editable.
+- **Artwork from a URL** — paste a direct image link into the **Logo** or **Background** field
+  and press **Download**; the file is fetched asynchronously and stored under
+  `%LocalAppData%\GameLauncher\Images`. Invalid links and network failures are reported.
 - **Launch your way** — press **Enter** or **double-click** a logo. `←` / `→` and the mouse
   wheel browse the library; a single click selects.
 - **Buttery animations** — springy scale-up of the selected tile, a pulsing glow behind it,
@@ -68,6 +71,10 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
      (`steam://rungameid/12345`) instead if you prefer.
 3. Optionally set a **Background Image** and a **Custom Game Cache Folder**.
 4. Press **Save**, then **Enter** (or double-click the logo) to play.
+
+For the **Logo Image** / **Background Image** fields you can either **Browse** for a local file
+or paste a direct image URL and press **Download** — the image is stored under
+`%LocalAppData%\GameLauncher\Images`.
 
 ---
 
@@ -148,10 +155,10 @@ on `windows-latest` whenever a tag matching `v*` is pushed, then:
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.1.0"
-git tag v1.1.0
+git commit -am "Release v1.2.0"
+git tag v1.2.0
 git push origin main
-git push origin v1.1.0
+git push origin v1.2.0
 ```
 
 `GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional
