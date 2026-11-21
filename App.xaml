@@ -188,13 +188,20 @@
                  DropShadowEffect and can be animated independently); its colour is the
                  logo's dominant colour. -->
             <Style x:Key="CarouselImageStyle" TargetType="controls:AsyncImage">
-                <!-- Fixed 108x108 slot: the logo stays centred inside the tile even when
-                     the selection scale / glow expand it. -->
-                <Setter Property="Width" Value="108" />
-                <Setter Property="Height" Value="108" />
+                <!-- Fixed 120x120 logo slot centred in the 140x140 tile. The selection
+                     scale is a RenderTransform, so it grows the logo visually without
+                     ever reflowing the horizontal StackPanel. -->
+                <Setter Property="Width" Value="120" />
+                <Setter Property="Height" Value="120" />
                 <Setter Property="Stretch" Value="Uniform" />
                 <Setter Property="HorizontalAlignment" Value="Center" />
                 <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform ScaleX="1" ScaleY="1" />
+                    </Setter.Value>
+                </Setter>
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
@@ -203,18 +210,44 @@
                     </DataTrigger>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
                                  Value="True">
-                        <!-- Soft pulse on the tile's glow (Effect.Opacity) while selected. -->
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
-                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                <Storyboard>
+                                    <!-- Smooth spring-like scale up (1.0 -> 1.2). -->
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                     From="1" To="1.2" Duration="0:0:0.32">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                     From="1" To="1.2" Duration="0:0:0.32">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <!-- Soft pulse on the tile's glow (Effect.Opacity). -->
                                     <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
-                                                     From="0.15" To="0.6" Duration="0:0:1.6" />
+                                                     From="0.15" To="0.6" Duration="0:0:1.6"
+                                                     RepeatBehavior="Forever" AutoReverse="True" />
                                 </Storyboard>
                             </BeginStoryboard>
                         </DataTrigger.EnterActions>
                         <DataTrigger.ExitActions>
                             <BeginStoryboard>
                                 <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                     To="1" Duration="0:0:0.26">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseInOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                     To="1" Duration="0:0:0.26">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseInOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
                                     <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
                                                      To="0" Duration="0:0:0.22" />
                                 </Storyboard>

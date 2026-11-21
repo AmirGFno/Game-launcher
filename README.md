@@ -173,10 +173,10 @@ on `windows-latest` whenever a tag matching `v*` is pushed, then:
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.5.3"
-git tag v1.5.3
+git commit -am "Release v1.5.4"
+git tag v1.5.4
 git push origin main
-git push origin v1.5.3
+git push origin v1.5.4
 ```
 
 `GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional

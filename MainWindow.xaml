@@ -201,9 +201,9 @@
                         <ListBox.Template>
                             <ControlTemplate TargetType="ListBox">
                                 <Border Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        Padding="{TemplateBinding Padding}"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
                                         ClipToBounds="False">
                                     <ScrollViewer ClipToBounds="False"
                                                   Focusable="False"
@@ -218,81 +218,44 @@
 
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                        ClipToBounds="False" />
+                                <!-- Plain horizontal stack: the ListBoxItem margins provide
+                                     the spacing. ClipToBounds=False so the scaled-up
+                                     selected logo is never cut off. -->
+                                <StackPanel Orientation="Horizontal" ClipToBounds="False" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
 
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
+                                <!-- Fixed 140x140 tile; 15px on each side gives a stable
+                                     170px pitch and keeps the horizontal flow intact. -->
+                                <Setter Property="Width" Value="140" />
+                                <Setter Property="Height" Value="140" />
+                                <Setter Property="Margin" Value="15,0,15,0" />
+                                <Setter Property="Padding" Value="0" />
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="BorderThickness" Value="0" />
                                 <Setter Property="HorizontalAlignment" Value="Center" />
                                 <Setter Property="VerticalAlignment" Value="Center" />
-                                <!-- Vertical room so the 1.2x scale is never clipped by the viewport. -->
-                                <Setter Property="Margin" Value="0,30,0,30" />
                                 <Setter Property="ClipToBounds" Value="False" />
                                 <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <ScaleTransform ScaleX="0.8" ScaleY="0.8" />
-                                    </Setter.Value>
-                                </Setter>
                                 <Setter Property="Opacity" Value="0.6" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <!-- Fixed 120x120 wrapper: the 1.2x scale grows
-                                                 the logo inside it, never clipping it or
-                                                 pushing the neighbouring tiles. -->
-                                            <Grid Width="120" Height="120" ClipToBounds="False">
-                                                <ContentPresenter />
-                                            </Grid>
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center" />
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
                                 <Style.Triggers>
+                                    <!-- The selected tile renders above its neighbours. -->
                                     <Trigger Property="IsSelected" Value="True">
-                                        <!-- Render above the neighbours instead of being cut off. -->
                                         <Setter Property="Panel.ZIndex" Value="1" />
                                         <Setter Property="Opacity" Value="1" />
-                                        <Trigger.EnterActions>
-                                            <!-- Smooth spring-like scale up -->
-                                            <BeginStoryboard>
-                                                <Storyboard>
-                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                                     To="1.2" Duration="0:0:0.32">
-                                                        <DoubleAnimation.EasingFunction>
-                                                            <CubicEase EasingMode="EaseOut" />
-                                                        </DoubleAnimation.EasingFunction>
-                                                    </DoubleAnimation>
-                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                     To="1.2" Duration="0:0:0.32">
-                                                        <DoubleAnimation.EasingFunction>
-                                                            <CubicEase EasingMode="EaseOut" />
-                                                        </DoubleAnimation.EasingFunction>
-                                                    </DoubleAnimation>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </Trigger.EnterActions>
-                                        <Trigger.ExitActions>
-                                            <BeginStoryboard>
-                                                <Storyboard>
-                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
-                                                                     To="0.8" Duration="0:0:0.26">
-                                                        <DoubleAnimation.EasingFunction>
-                                                            <CubicEase EasingMode="EaseInOut" />
-                                                        </DoubleAnimation.EasingFunction>
-                                                    </DoubleAnimation>
-                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                     To="0.8" Duration="0:0:0.26">
-                                                        <DoubleAnimation.EasingFunction>
-                                                            <CubicEase EasingMode="EaseInOut" />
-                                                        </DoubleAnimation.EasingFunction>
-                                                    </DoubleAnimation>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </Trigger.ExitActions>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="False">
+                                        <Setter Property="Panel.ZIndex" Value="0" />
                                     </Trigger>
                                     <Trigger Property="IsMouseOver" Value="True">
                                         <Setter Property="Opacity" Value="0.9" />
@@ -303,8 +266,10 @@
 
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <!-- Raw image, no border / box. Rounded through Image.Clip. -->
-                                <Grid Width="120" Height="120" Margin="10,0"
+                                <!-- Raw image, no border / box. Rounded through Image.Clip.
+                                     The tile is 140x140 and the logo inside is scaled with
+                                     a RenderTransform, so scaling never shifts the row. -->
+                                <Grid Width="140" Height="140"
                                       ClipToBounds="False"
                                       ToolTip="{Binding Title}"
                                       PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
