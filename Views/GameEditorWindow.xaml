@@ -49,8 +49,8 @@
                     Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseLaunchTargetCommand}"
                     Width="96" Margin="12,16,0,0" />
             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
-                       Text="An .exe path or a Steam URL, e.g. steam://rungameid/12345"
-                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
+                       Text="An .exe path or a Steam URL, e.g. steam://rungameid/12345 &#x2014; picking an .exe fills in its name and icon automatically"
+                       FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" TextWrapping="Wrap" />
 
             <!-- Logo -->
             <TextBlock Grid.Row="2" Grid.Column="0" Text="Logo Image" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,0" />

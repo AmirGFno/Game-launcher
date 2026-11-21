@@ -185,45 +185,6 @@
                 </Setter>
             </Style>
 
-            <!-- ============ Big PLAY button ============ -->
-            <Style x:Key="PlayButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="230" />
-                <Setter Property="Height" Value="66" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="FontSize" Value="22" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd"
-                                    CornerRadius="33"
-                                    Padding="30,0">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#FF0070D1" Offset="0" />
-                                        <GradientStop Color="#FF2D9CDB" Offset="1" />
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Effect">
-                                        <Setter.Value>
-                                            <DropShadowEffect BlurRadius="30" ShadowDepth="0" Color="#FF2D9CDB" Opacity="0.7" />
-                                        </Setter.Value>
-                                    </Setter>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Opacity" Value="0.35" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
         </ResourceDictionary>
     </Application.Resources>
 </Application>

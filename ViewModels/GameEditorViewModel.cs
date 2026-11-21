@@ -16,6 +16,11 @@ public sealed class GameEditorViewModel : ObservableObject
     private string? _customCacheFolderPath;
     private string? _error;
 
+    // Remember which values came from the executable, so that picking a different
+    // .exe refreshes them while anything the user typed by hand is left alone.
+    private string? _autoTitle;
+    private string? _autoLogo;
+
     public GameEditorViewModel(IDialogService dialog, GameItem? existing = null)
     {
         _dialog = dialog ?? throw new ArgumentNullException(nameof(dialog));
@@ -145,9 +150,31 @@ public sealed class GameEditorViewModel : ObservableObject
     private void BrowseLaunchTarget()
     {
         string? path = _dialog.OpenFile("Executable files (*.exe)|*.exe|All files (*.*)|*.*");
-        if (!string.IsNullOrEmpty(path))
+        if (string.IsNullOrEmpty(path))
         {
-            LaunchTarget = path;
+            return;
+        }
+
+        LaunchTarget = path;
+
+        // Auto-extract the display name and the embedded icon. Values the user
+        // typed manually are never overwritten.
+        string extractedTitle = GameInfoExtractor.GetDisplayName(path);
+        string? extractedLogo = GameInfoExtractor.ExtractLogo(path);
+
+        bool titleIsAuto = Title == _autoTitle;
+        bool logoIsAuto = LogoPath == _autoLogo;
+
+        if (string.IsNullOrWhiteSpace(Title) || titleIsAuto)
+        {
+            Title = extractedTitle;
+            _autoTitle = extractedTitle;
+        }
+
+        if (string.IsNullOrWhiteSpace(LogoPath) || logoIsAuto)
+        {
+            LogoPath = extractedLogo;
+            _autoLogo = extractedLogo;
         }
     }
 
