@@ -13,7 +13,7 @@
 
 [Setup]
 ; Fixed Id so upgrades keep their uninstall registration.
-AppId={{8F3C2A1E-5B7D-4C9A-9E2F-1A2B3C4D5E6F}
+AppId={{8F3C2A1E-5B7D-4C9A-9E2F-1A2B3C4D5E6F}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=GFno
