@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-and-release:
@@ -56,11 +57,29 @@ jobs:
 
       - name: Compile installer
         run: |
-          & "$env:ISCC" "$env:GITHUB_WORKSPACE\setup.iss"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
-          if (-not (Test-Path "$env:GITHUB_WORKSPACE\GameLauncherSetup.exe")) {
-            throw "GameLauncherSetup.exe was not produced."
+          $log = "$env:GITHUB_WORKSPACE\iscc.log"
+          $out = & "$env:ISCC" "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
+          $code = $LASTEXITCODE
+          $out | Out-File -FilePath $log -Encoding utf8
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $text = $out | Out-String
+            if ($text.Length -gt 1600) { $text = $text.Substring($text.Length - 1600) }
+            throw "Inno Setup failed with exit code $code.`n$text"
           }
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\GameLauncherSetup.exe")) {
+            throw "GameLauncherSetup.exe was not produced. See the iscc-log artifact."
+          }
+          Write-Host "Installer produced: $env:GITHUB_WORKSPACE\GameLauncherSetup.exe"
+
+      - name: Upload Inno Setup log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iscc-log
+          path: iscc.log
+          if-no-files-found: ignore
+          retention-days: 1
 
       # ---- Release --------------------------------------------------------
       - name: Create GitHub release
