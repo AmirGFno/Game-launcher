@@ -49,8 +49,7 @@
             <!-- ============ Header / custom title bar ============ -->
             <Grid Grid.Row="0"
                   Background="#26000000"
-                  MouseLeftButtonDown="Header_MouseLeftButtonDown"
-                  MouseDoubleClick="Header_MouseDoubleClick">
+                  MouseLeftButtonDown="Header_MouseLeftButtonDown">
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="56,0,0,0">
                     <Border Width="9" Height="26" Background="#FF2D9CDB" CornerRadius="2" />

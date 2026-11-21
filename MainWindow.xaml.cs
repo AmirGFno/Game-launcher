@@ -201,17 +201,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Double-click on the title bar maximizes / restores the window.
+        // (Grid has no MouseDoubleClick event, so the click count is used instead.)
+        if (e.ClickCount == 2)
+        {
+            ToggleMaximize();
+            return;
+        }
+
         if (e.ButtonState == MouseButtonState.Pressed)
         {
             DragMove();
-        }
-    }
-
-    private void Header_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (!IsInsideButton(e.OriginalSource))
-        {
-            ToggleMaximize();
         }
     }
 
