@@ -6,7 +6,7 @@ using GameLauncher.Views;
 
 namespace GameLauncher;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -33,11 +33,11 @@ public partial class App : Application
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        MessageBox.Show(
+        System.Windows.MessageBox.Show(
             $"An unexpected error occurred:\n\n{e.Exception.Message}",
             "Game Launcher",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+            System.Windows.MessageBoxButton.OK,
+            System.Windows.MessageBoxImage.Error);
 
         e.Handled = true;
     }

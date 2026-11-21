@@ -138,12 +138,13 @@ public partial class MainWindow : Window
     /// </summary>
     private void GamesListBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (sender is not ListBox listBox)
+        if (sender is not System.Windows.Controls.ListBox listBox)
         {
             return;
         }
 
-        ScrollViewer? scrollViewer = FindVisualChild<ScrollViewer>(listBox);
+        System.Windows.Controls.ScrollViewer? scrollViewer =
+            FindVisualChild<System.Windows.Controls.ScrollViewer>(listBox);
         if (scrollViewer is null)
         {
             return;
@@ -175,7 +176,7 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (_viewModel.IsCleaning)
         {
@@ -219,7 +220,7 @@ public partial class MainWindow : Window
     {
         while (source is not null)
         {
-            if (source is Button)
+            if (source is System.Windows.Controls.Button)
             {
                 return true;
             }
