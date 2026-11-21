@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _spinnerTimer;
 
     // The two background layers: exactly one is on top (the last one faded in).
-    private Image _frontLayer = null!;
+    private System.Windows.Controls.Image _frontLayer = null!;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -94,8 +94,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void CrossFadeBackground(string? path)
     {
-        Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
-        Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
+        System.Windows.Controls.Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
+        System.Windows.Controls.Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
 
         // Capture the values the previous animation reached before clearing it.
         double incomingFrom = incoming.Opacity;
