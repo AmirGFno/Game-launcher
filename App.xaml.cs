@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Markup;
@@ -10,9 +12,34 @@ namespace GameLauncher;
 
 public partial class App : System.Windows.Application
 {
+    // A named mutex is the reliable way to detect a second launcher: it survives
+    // across processes and is released automatically when the owner exits.
+    private const string SingleInstanceMutexName = @"Global\GFnoLauncher.SingleInstance";
+    private Mutex? _singleInstanceMutex;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        bool createdNew = false;
+        try
+        {
+            _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out createdNew);
+        }
+        catch (Exception)
+        {
+            // The mutex is an optimisation, not a hard requirement - if the name is
+            // unavailable, keep running rather than failing to start.
+        }
+
+        if (!createdNew && _singleInstanceMutex is not null)
+        {
+            // Another instance is already running - bring its window forward instead
+            // of starting a second copy of the launcher.
+            ActivateExistingInstance();
+            Shutdown();
+            return;
+        }
 
         // Makes the WinForms folder picker (System.Windows.Forms) use the
         // modern Vista-style dialog instead of the legacy one.
@@ -32,6 +59,45 @@ public partial class App : System.Windows.Application
         MainWindow = mainWindow;
         mainWindow.Show();
     }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        // Release the single-instance mutex only after the process is gone, so the
+        // name stays owned for the whole lifetime of the app.
+        _singleInstanceMutex?.Dispose();
+        _singleInstanceMutex = null;
+
+        base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Finds the window of the already-running instance and brings it to the
+    /// foreground, mirroring the usual "single instance" behaviour.
+    /// </summary>
+    private static void ActivateExistingInstance()
+    {
+        Process current = Process.GetCurrentProcess();
+
+        Process? other = Process.GetProcessesByName(current.ProcessName)
+                               .FirstOrDefault(candidate => candidate.Id != current.Id && candidate.MainWindowHandle != IntPtr.Zero);
+
+        if (other is null)
+        {
+            return;
+        }
+
+        IntPtr handle = other.MainWindowHandle;
+        ShowWindowAsync(handle, SW_RESTORE);
+        SetForegroundWindow(handle);
+    }
+
+    private const int SW_RESTORE = 9;
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {

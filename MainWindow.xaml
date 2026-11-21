@@ -10,6 +10,7 @@
         WindowStartupLocation="CenterScreen"
         Icon="Assets/icon.ico"
         Background="#FF0B0E14"
+        ClipToBounds="False"
         TextOptions.TextFormattingMode="Display">
 
     <Window.Resources>
@@ -51,7 +52,9 @@
           6 = floating action buttons / hint
           7 = loading overlay
     -->
-    <Grid>
+    <!-- ClipToBounds stays off on every ancestor so the scaled-up selected logo is
+         never cut off by the window, the grid or the carousel viewport. -->
+    <Grid ClipToBounds="False">
 
         <!-- ============ Layer 0: default dark gradient background ============ -->
         <Rectangle Panel.ZIndex="0">
@@ -216,7 +219,7 @@
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                            ClipToBounds="False" />
+                                        ClipToBounds="False" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
 
@@ -239,7 +242,12 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <ContentPresenter />
+                                            <!-- Fixed 120x120 wrapper: the 1.2x scale grows
+                                                 the logo inside it, never clipping it or
+                                                 pushing the neighbouring tiles. -->
+                                            <Grid Width="120" Height="120" ClipToBounds="False">
+                                                <ContentPresenter />
+                                            </Grid>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
@@ -311,7 +319,7 @@
                                              (ImageColorExtractor); pulses while selected. -->
                                         <controls:AsyncImage.Effect>
                                             <DropShadowEffect BlurRadius="28" ShadowDepth="0"
-                                                              Color="{Binding LogoPath, Converter={StaticResource DominantColorConverter}}"
+                                                              Color="{Binding DominantColorValue}"
                                                               Opacity="0" />
                                         </controls:AsyncImage.Effect>
                                     </controls:AsyncImage>

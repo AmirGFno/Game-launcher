@@ -10,7 +10,6 @@
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
             <converters:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
-            <converters:DominantColorConverter x:Key="DominantColorConverter" />
 
             <!-- ============ Brushes ============ -->
             <SolidColorBrush x:Key="AccentBrush" Color="#FF2D9CDB" />
@@ -189,7 +188,13 @@
                  DropShadowEffect and can be animated independently); its colour is the
                  logo's dominant colour. -->
             <Style x:Key="CarouselImageStyle" TargetType="controls:AsyncImage">
-                <Setter Property="Stretch" Value="UniformToFill" />
+                <!-- Fixed 108x108 slot: the logo stays centred inside the tile even when
+                     the selection scale / glow expand it. -->
+                <Setter Property="Width" Value="108" />
+                <Setter Property="Height" Value="108" />
+                <Setter Property="Stretch" Value="Uniform" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"

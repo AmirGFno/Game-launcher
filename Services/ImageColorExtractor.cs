@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using GameLauncher.Converters;
 using Color = System.Windows.Media.Color;
 
 namespace GameLauncher.Services;
@@ -68,6 +71,34 @@ public static class ImageColorExtractor
             // Colour extraction is purely cosmetic - it must never break the carousel.
             return DefaultAccent;
         }
+    }
+
+    /// <summary>
+    /// Decodes the logo off the UI thread and returns its dominant colour. Both the
+    /// decode (<see cref="ImageLoader"/>) and the pixel sampling are cached, so this
+    /// is cheap to call repeatedly.
+    /// </summary>
+    public static async Task<Color> ExtractDominantColorAsync(
+        string? path,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return DefaultAccent;
+        }
+
+        BitmapSource? image = await ImageLoader
+            .LoadAsync(path, ImageLoader.MaxLogoWidth, desaturate: false, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (image is null)
+        {
+            return DefaultAccent;
+        }
+
+        // CopyPixels and the bucketing are pure CPU work - keep them off the UI thread.
+        return await Task.Run(() => ExtractDominantColor(image), cancellationToken)
+                          .ConfigureAwait(false);
     }
 
     private static Color Extract(BitmapSource image)
