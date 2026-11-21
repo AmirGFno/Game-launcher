@@ -302,7 +302,7 @@
                                       PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
                                     <controls:AsyncImage Style="{StaticResource CarouselImageStyle}"
                                                          Path="{Binding LogoPath}"
-                                                         MaxWidth="256"
+                                                         DecodeWidth="256"
                                                          ClipToBounds="False">
                                         <controls:AsyncImage.Clip>
                                             <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />

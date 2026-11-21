@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using GameLauncher.Converters;
@@ -23,8 +24,8 @@ public sealed class AsyncImage : System.Windows.Controls.Image
             typeof(AsyncImage),
             new FrameworkPropertyMetadata(null, OnPathChanged));
 
-        MaxWidthProperty = DependencyProperty.Register(
-            nameof(MaxWidth),
+        DecodeWidthProperty = DependencyProperty.Register(
+            nameof(DecodeWidth),
             typeof(int),
             typeof(AsyncImage),
             new FrameworkPropertyMetadata(0, OnPathChanged));
@@ -37,7 +38,7 @@ public sealed class AsyncImage : System.Windows.Controls.Image
     }
 
     public static readonly DependencyProperty PathProperty;
-    public static readonly DependencyProperty MaxWidthProperty;
+    public static readonly DependencyProperty DecodeWidthProperty;
     public static readonly DependencyProperty DesaturateProperty;
 
     /// <summary>File path (or URL-free absolute path) of the artwork to display.</summary>
@@ -51,10 +52,10 @@ public sealed class AsyncImage : System.Windows.Controls.Image
     /// Maximum decode width; larger files are downscaled while decoding. 0 keeps
     /// the original size.
     /// </summary>
-    public int MaxWidth
+    public int DecodeWidth
     {
-        get => (int)GetValue(MaxWidthProperty);
-        set => SetValue(MaxWidthProperty, value);
+        get => (int)GetValue(DecodeWidthProperty);
+        set => SetValue(DecodeWidthProperty, value);
     }
 
     /// <summary>Shows a greyscale version of the artwork (unselected carousel tiles).</summary>
@@ -77,12 +78,12 @@ public sealed class AsyncImage : System.Windows.Controls.Image
         _pending = cancellation;
 
         string? path = Path;
-        int maxWidth = MaxWidth;
+        int maxWidth = DecodeWidth;
         bool desaturate = Desaturate;
 
         try
         {
-            BitmapImage? image = await ImageLoader
+            BitmapSource? image = await ImageLoader
                 .LoadAsync(path, maxWidth, desaturate, cancellation.Token)
                 .ConfigureAwait(false);
 
@@ -116,5 +117,5 @@ public sealed class AsyncImage : System.Windows.Controls.Image
     }
 
     private bool IsCurrent(string? path, int maxWidth, bool desaturate)
-        => Path == path && MaxWidth == maxWidth && Desaturate == desaturate;
+        => Path == path && DecodeWidth == maxWidth && Desaturate == desaturate;
 }
