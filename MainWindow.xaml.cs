@@ -135,7 +135,7 @@ public partial class MainWindow : Window
         double incomingFrom = incoming.Opacity;
         double outgoingFrom = outgoing.Opacity;
 
-        BitmapImage? image = await ImageLoader
+        BitmapSource? image = await ImageLoader
             .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
             .ConfigureAwait(true);
 
@@ -186,7 +186,7 @@ public partial class MainWindow : Window
     {
         int generation = ++_backgroundGeneration;
 
-        BitmapImage? image = await ImageLoader
+        BitmapSource? image = await ImageLoader
             .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
             .ConfigureAwait(true);
 
@@ -278,7 +278,7 @@ public partial class MainWindow : Window
     {
         _isQuitting = true;
         DisposeTrayIcon();
-        Application.Current.Shutdown();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private void DisposeTrayIcon()

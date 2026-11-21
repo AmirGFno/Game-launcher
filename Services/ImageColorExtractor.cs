@@ -37,7 +37,7 @@ public static class ImageColorExtractor
     /// Returns the dominant colour of <paramref name="image"/>, or
     /// <see cref="DefaultAccent"/> when the image is empty / unreadable.
     /// </summary>
-    public static Color ExtractDominantColor(BitmapImage image)
+    public static Color ExtractDominantColor(BitmapSource image)
     {
         if (image is null)
         {
@@ -46,7 +46,9 @@ public static class ImageColorExtractor
 
         try
         {
-            if (image.UriSource is { IsFile: true } uri)
+            // Only file-backed bitmaps can be cached by path; a derived image (the
+            // desaturated carousel variant) is simply re-extracted.
+            if (image is BitmapImage { UriSource: { IsFile: true } uri })
             {
                 string path = uri.LocalPath;
                 if (Cache.TryGetValue(path, out CacheEntry cached) && IsCurrent(path, cached))
@@ -68,7 +70,7 @@ public static class ImageColorExtractor
         }
     }
 
-    private static Color Extract(BitmapImage image)
+    private static Color Extract(BitmapSource image)
     {
         int width = image.PixelWidth;
         int height = image.PixelHeight;

@@ -23,7 +23,7 @@ public sealed class DominantColorConverter : IValueConverter
 
         // Small decode (logos are capped at 256px), and it warms the cache used by
         // the carousel tile itself.
-        BitmapImage? image = ImageLoader.Load(path, ImageLoader.MaxLogoWidth);
+        BitmapSource? image = ImageLoader.Load(path, ImageLoader.MaxLogoWidth);
         return image is null
             ? ImageColorExtractor.DefaultAccent
             : ImageColorExtractor.ExtractDominantColor(image);

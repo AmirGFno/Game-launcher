@@ -23,7 +23,7 @@ public static class ImageLoader
     /// <summary>Carousel logos are displayed at 120px; 256 keeps them crisp.</summary>
     public const int MaxLogoWidth = 256;
 
-    private static readonly ConcurrentDictionary<string, BitmapImage> Cache =
+    private static readonly ConcurrentDictionary<string, BitmapSource> Cache =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -31,7 +31,7 @@ public static class ImageLoader
     /// thread: once the cache is warm this is a dictionary read, and the decode
     /// itself is downscaled, so it stays cheap.
     /// </summary>
-    public static BitmapImage? Load(string? path, int maxWidth = 0, bool desaturate = false)
+    public static BitmapSource? Load(string? path, int maxWidth = 0, bool desaturate = false)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -39,12 +39,12 @@ public static class ImageLoader
         }
 
         string key = Key(path, maxWidth, desaturate);
-        if (Cache.TryGetValue(key, out BitmapImage? cached))
+        if (Cache.TryGetValue(key, out BitmapSource? cached))
         {
             return cached;
         }
 
-        BitmapImage? image = Decode(path, maxWidth, desaturate);
+        BitmapSource? image = Decode(path, maxWidth, desaturate);
         if (image is not null)
         {
             Cache.TryAdd(key, image);
@@ -58,7 +58,7 @@ public static class ImageLoader
     /// thread-pool thread; the returned image is frozen and safe to use on the UI
     /// thread.
     /// </summary>
-    public static Task<BitmapImage?> LoadAsync(
+    public static Task<BitmapSource?> LoadAsync(
         string? path,
         int maxWidth = 0,
         bool desaturate = false,
@@ -66,11 +66,11 @@ public static class ImageLoader
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return Task.FromResult<BitmapImage?>(null);
+            return Task.FromResult<BitmapSource?>(null);
         }
 
         string key = Key(path, maxWidth, desaturate);
-        if (Cache.TryGetValue(key, out BitmapImage? cached))
+        if (Cache.TryGetValue(key, out BitmapSource? cached))
         {
             return Task.FromResult(cached);
         }
@@ -82,12 +82,12 @@ public static class ImageLoader
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (Cache.TryGetValue(key, out BitmapImage? hit))
+                    if (Cache.TryGetValue(key, out BitmapSource? hit))
                     {
                         return hit;
                     }
 
-                    BitmapImage? image = Decode(path, maxWidth, desaturate);
+                    BitmapSource? image = Decode(path, maxWidth, desaturate);
                     if (image is not null)
                     {
                         Cache.TryAdd(key, image);
@@ -107,7 +107,7 @@ public static class ImageLoader
     private static string Key(string path, int maxWidth, bool desaturate)
         => $"{maxWidth}|{(desaturate ? 1 : 0)}|{path}";
 
-    private static BitmapImage? Decode(string path, int maxWidth, bool desaturate)
+    private static BitmapSource? Decode(string path, int maxWidth, bool desaturate)
     {
         try
         {
@@ -134,7 +134,7 @@ public static class ImageLoader
                 return bitmap;
             }
 
-            // Same trick as before: a grey copy keeps the colour original alive.
+            // Greyscale copy for the unselected carousel tiles.
             var grey = new FormatConvertedBitmap(bitmap, PixelFormats.Gray8, null, 0);
             grey.Freeze();
             return grey;
