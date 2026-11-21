@@ -19,7 +19,9 @@ public sealed class DialogService : IDialogService
             Multiselect = false
         };
 
-        return dialog.ShowDialog(Application.Current?.MainWindow) == true ? dialog.FileName : null;
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true
+            ? dialog.FileName
+            : null;
     }
 
     public string? OpenFolder()
@@ -31,13 +33,15 @@ public sealed class DialogService : IDialogService
             ShowNewFolderButton = true
         };
 
-        return dialog.ShowDialog(Application.Current?.MainWindow) == DialogResult.OK ? dialog.SelectedPath : null;
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == DialogResult.OK
+            ? dialog.SelectedPath
+            : null;
     }
 
     public void ShowError(string title, string message)
     {
         System.Windows.MessageBox.Show(
-            Application.Current?.MainWindow,
+            System.Windows.Application.Current?.MainWindow,
             message,
             title,
             MessageBoxButton.OK,
@@ -47,7 +51,7 @@ public sealed class DialogService : IDialogService
     public void ShowInfo(string title, string message)
     {
         System.Windows.MessageBox.Show(
-            Application.Current?.MainWindow,
+            System.Windows.Application.Current?.MainWindow,
             message,
             title,
             MessageBoxButton.OK,
@@ -57,7 +61,7 @@ public sealed class DialogService : IDialogService
     public bool Confirm(string title, string message)
     {
         return System.Windows.MessageBox.Show(
-                   Application.Current?.MainWindow,
+                   System.Windows.Application.Current?.MainWindow,
                    message,
                    title,
                    MessageBoxButton.YesNo,
@@ -68,7 +72,7 @@ public sealed class DialogService : IDialogService
     {
         var window = new GameEditorWindow(viewModel)
         {
-            Owner = Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow
         };
 
         return window.ShowDialog() == true ? viewModel.Result : null;
