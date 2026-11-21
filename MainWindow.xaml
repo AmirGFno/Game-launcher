@@ -37,14 +37,39 @@
         </Style>
     </Window.Resources>
 
+    <!--
+        Explicit layering. Panel.ZIndex is set on every layer, so the wallpaper can
+        never climb above the UI (the cross-fade below keeps its layers at 1 and 2,
+        strictly below the overlay at 3 and the UI at 4).
+          0 = default dark gradient background
+          1 = background image (fading out)
+          2 = background image (fading in, Ken Burns)
+          3 = dark readability gradient overlay
+          4 = all UI (header, title, carousel)
+          5 = bottom vignette
+          6 = floating action buttons / hint
+          7 = loading overlay
+    -->
     <Grid>
 
-        <!-- ============ Background: two layers cross-fade, so there is no dark flash ============ -->
-        <Image x:Name="BackgroundBack" Style="{StaticResource KenBurnsImageStyle}" Opacity="1" />
-        <Image x:Name="BackgroundFront" Style="{StaticResource KenBurnsImageStyle}" Opacity="0" />
+        <!-- ============ Layer 0: default dark gradient background ============ -->
+        <Rectangle Panel.ZIndex="0">
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#FF0B0E14" Offset="0" />
+                    <GradientStop Color="#FF060910" Offset="1" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
 
-        <!-- ============ Bottom-to-top readability gradient ============ -->
-        <Rectangle>
+        <!-- ============ Layers 1-2: dynamic background, cross-fading ============ -->
+        <Image x:Name="BackgroundBack" Style="{StaticResource KenBurnsImageStyle}"
+               Opacity="1" Panel.ZIndex="1" />
+        <Image x:Name="BackgroundFront" Style="{StaticResource KenBurnsImageStyle}"
+               Opacity="0" Panel.ZIndex="2" />
+
+        <!-- ============ Layer 3: bottom-to-top readability gradient ============ -->
+        <Rectangle Panel.ZIndex="3">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#000B0E14" Offset="0" />
@@ -54,17 +79,21 @@
             </Rectangle.Fill>
         </Rectangle>
 
-        <!-- ============ Layout ============ -->
-        <Grid>
+        <!-- ============ Layer 4: all UI ============ -->
+        <Grid Panel.ZIndex="4">
             <Grid.RowDefinitions>
                 <RowDefinition Height="64" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- ============ Header / custom title bar ============ -->
-            <Grid Grid.Row="0"
-                  Background="#1F000000"
-                  MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <!-- ============ Header / custom title bar: cinematic fade, no glass ============ -->
+            <Grid Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#FF0B0E14" Offset="0" />
+                        <GradientStop Color="#000B0E14" Offset="1" />
+                    </LinearGradientBrush>
+                </Grid.Background>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="48,0,0,0">
                     <Image Source="Assets/icon.png" Width="20" Height="20"
@@ -77,9 +106,14 @@
                                VerticalAlignment="Center" Margin="16,0,0,0" />
                 </StackPanel>
 
-                <!-- Minimal window chrome: no backgrounds, just thin 16x16 glyphs -->
+                <!-- Add (left of the window controls) + Min / Max / Close -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                            HorizontalAlignment="Right" Margin="0,0,18,0">
+                            HorizontalAlignment="Right" Margin="0,0,20,0">
+                    <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Add game"
+                            Command="{Binding AddGameCommand}" Margin="0,0,20,0">
+                        <Path Data="M7,3 H9 V7 H13 V9 H9 V13 H7 V9 H3 V7 H7 Z" Fill="#FFFFFFFF"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
                     <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Minimize"
                             Click="MinimizeButton_Click">
                         <Path Data="M3,12.5 H13" Stroke="White" StrokeThickness="1.2"
@@ -123,12 +157,12 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Title, just above the carousel (the .exe path is deliberately not shown) -->
+                <!-- Title, right above the carousel -->
                 <StackPanel x:Name="TitlePanel"
                             Grid.Row="1"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,0,20"
+                            Margin="0,0,0,10"
                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel.RenderTransform>
                         <TranslateTransform Y="14" />
@@ -190,6 +224,8 @@
                                 <Setter Property="BorderThickness" Value="0" />
                                 <Setter Property="HorizontalAlignment" Value="Center" />
                                 <Setter Property="VerticalAlignment" Value="Center" />
+                                <!-- Vertical room so the 1.2x scale is never clipped by the viewport. -->
+                                <Setter Property="Margin" Value="0,30,0,30" />
                                 <Setter Property="ClipToBounds" Value="False" />
                                 <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
                                 <Setter Property="RenderTransform">
@@ -197,7 +233,7 @@
                                         <ScaleTransform ScaleX="0.8" ScaleY="0.8" />
                                     </Setter.Value>
                                 </Setter>
-                                <Setter Property="Opacity" Value="0.5" />
+                                <Setter Property="Opacity" Value="0.6" />
                                 <!-- Pulsing accent glow behind the selected logo (invisible otherwise). -->
                                 <Setter Property="Effect">
                                     <Setter.Value>
@@ -262,7 +298,7 @@
                                         </Trigger.ExitActions>
                                     </Trigger>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Opacity" Value="0.85" />
+                                        <Setter Property="Opacity" Value="0.9" />
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -271,14 +307,12 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <!-- Raw image, no border / box. Rounded through Image.Clip. -->
-                                <Grid Width="120" Height="120" Margin="8,0"
+                                <Grid Width="120" Height="120" Margin="10,0"
                                       ClipToBounds="False"
                                       ToolTip="{Binding Title}"
                                       PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
-                                    <Image Source="{Binding LogoPath, Converter={StaticResource ImagePathConverter}}"
-                                           Stretch="UniformToFill"
-                                           ClipToBounds="False"
-                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                    <Image Style="{StaticResource CarouselImageStyle}"
+                                           ClipToBounds="False">
                                         <Image.Clip>
                                             <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />
                                         </Image.Clip>
@@ -303,8 +337,9 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Fade-out shadow along the very bottom edge ============ -->
-        <Rectangle VerticalAlignment="Bottom" Height="150" IsHitTestVisible="False">
+        <!-- ============ Layer 5: fade-out shadow along the very bottom edge ============ -->
+        <Rectangle VerticalAlignment="Bottom" Height="150" IsHitTestVisible="False"
+                   Panel.ZIndex="5">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#00000000" Offset="0" />
@@ -314,14 +349,9 @@
             </Rectangle.Fill>
         </Rectangle>
 
-        <!-- ============ Bottom-left actions: Add / Edit / Delete (icon only) ============ -->
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                    Margin="28,0,0,28">
-            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Add game"
-                    Command="{Binding AddGameCommand}" Margin="0,0,10,0">
-                <Path Data="M7,3 H9 V7 H13 V9 H9 V13 H7 V9 H3 V7 H7 Z" Fill="#FFFFFFFF"
-                      Width="16" Height="16" Stretch="Uniform" />
-            </Button>
+        <!-- ============ Layer 6: bottom-right actions: Edit / Delete (icon only) ============ -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                    Margin="0,0,28,28" Panel.ZIndex="6">
             <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Edit selected game"
                     Command="{Binding EditGameCommand}" Margin="0,0,10,0">
                 <Path Data="M2,11.5 V14 H4.5 L11.87,6.63 L9.37,4.13 Z M13.8,4.69 C14.06,4.43 14.06,4.01 13.8,3.75 L12.24,2.19 C11.98,1.93 11.56,1.93 11.3,2.19 L10.08,3.41 L12.58,5.91 Z"
@@ -336,6 +366,7 @@
 
         <!-- ============ Hint ============ -->
         <TextBlock VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,34"
+                   Panel.ZIndex="6"
                    Text="Enter / Double-click — Launch      Scroll — Browse"
                    FontSize="12" Foreground="#FF9FB0CC" IsHitTestVisible="False">
             <TextBlock.Effect>
@@ -343,8 +374,8 @@
             </TextBlock.Effect>
         </TextBlock>
 
-        <!-- ============ Loading overlay (temp cleanup / launch) ============ -->
-        <Grid Background="#CC000000"
+        <!-- ============ Layer 7: loading overlay (temp cleanup / launch) ============ -->
+        <Grid Background="#CC000000" Panel.ZIndex="7"
               Visibility="{Binding IsCleaning, Converter={StaticResource BoolToVisibilityConverter}}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Ellipse x:Name="Spinner"
