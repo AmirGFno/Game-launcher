@@ -28,7 +28,12 @@ PlayStation-5-style carousel.
   slide-up title on every change.
 - **Fast artwork pipeline** — logos and wallpapers are decoded on a worker thread, downscaled
   while decoding (max **1920px** backgrounds, **256px** logos) and cached in memory, so large 4K
-  images never block the UI or blow up RAM.
+  images never block the UI or blow up RAM. Every decoded bitmap is frozen before it is bound.
+- **Off-thread colour sampling** — the logo's dominant colour is extracted on a background
+  thread, cached on the game itself and persisted in `library.json`, so the same image is never
+  sampled twice.
+- **Single instance** — a second launch simply brings the running window to the front instead of
+  opening a second copy.
 - **WebP support** — `.webp` logos and backgrounds are decoded through
   [ImageSharp](https://github.com/SixLabors/ImageSharp) (WPF cannot read WebP on its own).
 - **Lives in the system tray** — closing the window hides it instead of quitting; double-click
@@ -168,10 +173,10 @@ on `windows-latest` whenever a tag matching `v*` is pushed, then:
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.5.0"
-git tag v1.5.0
+git commit -am "Release v1.5.3"
+git tag v1.5.3
 git push origin main
-git push origin v1.5.0
+git push origin v1.5.3
 ```
 
 `GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional

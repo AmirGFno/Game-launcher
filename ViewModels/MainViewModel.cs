@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Media;
 using GameLauncher.Models;
 using GameLauncher.Services;
 
@@ -193,6 +194,10 @@ public sealed class MainViewModel : ObservableObject
             }
 
             SelectedGame = Games.FirstOrDefault();
+
+            // Sample the logo colours in the background so the glow never blocks
+            // the UI, then persist whatever was computed.
+            _ = EnsureDominantColorsAsync(games);
         }
         catch (Exception ex)
         {
@@ -262,6 +267,7 @@ public sealed class MainViewModel : ObservableObject
         Games.Add(result);
         SelectedGame = result;
         _ = PersistAsync();
+        _ = RefreshDominantColorAsync(result);
     }
 
     private void EditGame()
@@ -290,6 +296,7 @@ public sealed class MainViewModel : ObservableObject
 
         SelectedGame = result;
         _ = PersistAsync();
+        _ = RefreshDominantColorAsync(result);
     }
 
     private void DeleteGame()
@@ -314,6 +321,53 @@ public sealed class MainViewModel : ObservableObject
         SelectedGame = Games.Count > 0 ? Games[Math.Min(index, Games.Count - 1)] : null;
         IsReordering = false;
         _ = PersistAsync();
+    }
+
+    /// <summary>
+    /// Computes and caches the dominant glow colour for every logo, off the UI
+    /// thread. Games whose colour was persisted already are skipped, so the same
+    /// image is never sampled twice.
+    /// </summary>
+    private async Task EnsureDominantColorsAsync(IEnumerable<GameItem> games)
+    {
+        foreach (GameItem game in games)
+        {
+            // The caller is the UI thread, so the continuation that writes the
+            // colour back onto the model also runs there.
+            await RefreshDominantColorAsync(game);
+        }
+
+        _ = PersistAsync();
+    }
+
+    /// <summary>
+    /// Extracts the dominant colour of a single game's logo on a background thread
+    /// and stores it on the model, where the glow binding picks it up. The logo is
+    /// decoded downscaled (256 px) and the result is reused on later starts.
+    /// </summary>
+    private async Task RefreshDominantColorAsync(GameItem? game)
+    {
+        if (game is null)
+        {
+            return;
+        }
+
+        if (game.RestoreDominantColor())
+        {
+            return;
+        }
+
+        try
+        {
+            Color color = await ImageColorExtractor
+                .ExtractDominantColorAsync(game.LogoPath);
+
+            game.SetDominantColor(color);
+        }
+        catch
+        {
+            // A colour is decorative - a broken image must never take the app down.
+        }
     }
 
     private async Task PersistAsync()
