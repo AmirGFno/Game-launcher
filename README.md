@@ -26,6 +26,13 @@ PlayStation-5-style carousel.
 - **Buttery animations** — springy scale-up of the selected tile, a pulsing glow behind it
   tinted with the logo's **dominant colour**, hover lift + glow, cross-fading backgrounds and a
   slide-up title on every change.
+- **Fast artwork pipeline** — logos and wallpapers are decoded on a worker thread, downscaled
+  while decoding (max **1920px** backgrounds, **256px** logos) and cached in memory, so large 4K
+  images never block the UI or blow up RAM.
+- **WebP support** — `.webp` logos and backgrounds are decoded through
+  [ImageSharp](https://github.com/SixLabors/ImageSharp) (WPF cannot read WebP on its own).
+- **Lives in the system tray** — closing the window hides it instead of quitting; double-click
+  the tray icon (or use its context menu) to bring it back, and **Quit** really exits.
 - **Reorder mode** — the **↔** button (bottom-right) toggles reorder mode: `←` / `→` (or the
   mouse wheel) then move the selected game within the library, `Esc` leaves the mode. The new
   order is saved automatically.
@@ -136,6 +143,7 @@ GameLauncher/
 ├── Services/                    # library persistence, temp cleaner, launcher,
 │                                #   game info extraction, dialogs abstraction,
 │                                #   dominant-colour extraction
+├── Controls/                    # AsyncImage (background-thread, cached artwork)
 ├── ViewModels/                  # ObservableObject, RelayCommand(+Async), MainViewModel,
 │                                #   GameEditorViewModel
 ├── Views/                       # DialogService, GameEditorWindow
@@ -160,10 +168,10 @@ on `windows-latest` whenever a tag matching `v*` is pushed, then:
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.4.0"
-git tag v1.4.0
+git commit -am "Release v1.5.0"
+git tag v1.5.0
 git push origin main
-git push origin v1.4.0
+git push origin v1.5.0
 ```
 
 `GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional

@@ -188,7 +188,7 @@ public sealed class GameEditorViewModel : ObservableObject
 
     private void BrowseLogo()
     {
-        string? path = _dialog.OpenFile("Images (*.ico;*.png;*.jpg;*.jpeg)|*.ico;*.png;*.jpg;*.jpeg|All files (*.*)|*.*");
+        string? path = _dialog.OpenFile("Images (*.ico;*.png;*.jpg;*.jpeg;*.webp)|*.ico;*.png;*.jpg;*.jpeg;*.webp|All files (*.*)|*.*");
         if (!string.IsNullOrEmpty(path))
         {
             LogoPath = path;
@@ -197,7 +197,7 @@ public sealed class GameEditorViewModel : ObservableObject
 
     private void BrowseBackground()
     {
-        string? path = _dialog.OpenFile("Images (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|All files (*.*)|*.*");
+        string? path = _dialog.OpenFile("Images (*.png;*.jpg;*.jpeg;*.webp)|*.png;*.jpg;*.jpeg;*.webp|All files (*.*)|*.*");
         if (!string.IsNullOrEmpty(path))
         {
             BackgroundPath = path;

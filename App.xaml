@@ -1,16 +1,15 @@
 <Application x:Class="GameLauncher.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:GameLauncher.Converters">
+             xmlns:converters="clr-namespace:GameLauncher.Converters"
+             xmlns:controls="clr-namespace:GameLauncher.Controls">
     <Application.Resources>
         <ResourceDictionary>
 
             <!-- ============ Converters ============ -->
-            <converters:ImagePathConverter x:Key="ImagePathConverter" />
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
             <converters:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
-            <converters:DesaturatedImagePathConverter x:Key="DesaturatedImagePathConverter" />
             <converters:DominantColorConverter x:Key="DominantColorConverter" />
 
             <!-- ============ Brushes ============ -->
@@ -184,20 +183,18 @@
             </Style>
 
             <!-- ============ Carousel logo image ============
-                 Colour image when selected, desaturated when not. The glow that
-                 surrounds the tile lives in the DataTemplate (so every tile owns its
-                 own DropShadowEffect and can be animated independently); its colour
-                 is the logo's dominant colour. -->
-            <Style x:Key="CarouselImageStyle" TargetType="Image">
-                <Setter Property="Source"
-                        Value="{Binding LogoPath, Converter={StaticResource ImagePathConverter}}" />
+                 <see cref="controls.AsyncImage"/> decodes off the UI thread and caches,
+                 so the carousel never stalls on big files. The glow that surrounds the
+                 tile lives in the DataTemplate (so every tile owns its own
+                 DropShadowEffect and can be animated independently); its colour is the
+                 logo's dominant colour. -->
+            <Style x:Key="CarouselImageStyle" TargetType="controls:AsyncImage">
                 <Setter Property="Stretch" Value="UniformToFill" />
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
                                  Value="False">
-                        <Setter Property="Source"
-                                Value="{Binding LogoPath, Converter={StaticResource DesaturatedImagePathConverter}}" />
+                        <Setter Property="Desaturate" Value="True" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
                                  Value="True">
