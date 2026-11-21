@@ -109,8 +109,8 @@ public partial class MainWindow : Window
         outgoing.Opacity = outgoingFrom;
 
         // The layer that fades in must render on top of the one fading out.
-        Panel.SetZIndex(incoming, 1);
-        Panel.SetZIndex(outgoing, 0);
+        System.Windows.Controls.Panel.SetZIndex(incoming, 1);
+        System.Windows.Controls.Panel.SetZIndex(outgoing, 0);
 
         var storyboard = new Storyboard();
 
@@ -140,8 +140,8 @@ public partial class MainWindow : Window
     {
         BackgroundBack.BeginAnimation(UIElement.OpacityProperty, null);
         BackgroundFront.BeginAnimation(UIElement.OpacityProperty, null);
-        Panel.SetZIndex(BackgroundBack, 0);
-        Panel.SetZIndex(BackgroundFront, 0);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 0);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 0);
 
         BackgroundBack.Source = ImageLoader.Load(path);
         BackgroundBack.Opacity = 1;
