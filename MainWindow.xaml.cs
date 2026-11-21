@@ -108,9 +108,11 @@ public partial class MainWindow : Window
         incoming.Opacity = incomingFrom;
         outgoing.Opacity = outgoingFrom;
 
-        // The layer that fades in must render on top of the one fading out.
-        System.Windows.Controls.Panel.SetZIndex(incoming, 1);
-        System.Windows.Controls.Panel.SetZIndex(outgoing, 0);
+        // The layer that fades in renders above the one fading out, but both stay
+        // below the readability overlay (3) and the UI grid (4) - the wallpaper must
+        // never climb above the interface.
+        System.Windows.Controls.Panel.SetZIndex(incoming, 2);
+        System.Windows.Controls.Panel.SetZIndex(outgoing, 1);
 
         var storyboard = new Storyboard();
 
@@ -140,8 +142,8 @@ public partial class MainWindow : Window
     {
         BackgroundBack.BeginAnimation(UIElement.OpacityProperty, null);
         BackgroundFront.BeginAnimation(UIElement.OpacityProperty, null);
-        System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 0);
-        System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 0);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 2);
+        System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 1);
 
         BackgroundBack.Source = ImageLoader.Load(path);
         BackgroundBack.Opacity = 1;
