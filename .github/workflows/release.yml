@@ -53,22 +53,37 @@ jobs:
           $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe was not found after installing Inno Setup." }
           Write-Host "Using Inno Setup compiler: $iscc"
-          "ISCC=$iscc" | Out-File -FilePath "$env:GITHUB_ENV" -Encoding utf8 -Append
 
       - name: Compile installer
         run: |
-          $log = "$env:GITHUB_WORKSPACE\iscc.log"
-          $out = & "$env:ISCC" "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
+          # Resolve the compiler here as well - relying on GITHUB_ENV for the path
+          # proved unreliable.
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            Write-Host "##[error]ISCC.exe was not found on this runner."
+            exit 1
+          }
+          Write-Host "Compiling installer with: $iscc"
+
+          $out = & $iscc "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
           $code = $LASTEXITCODE
-          $out | Out-File -FilePath $log -Encoding utf8
+          $out | Out-File -FilePath "$env:GITHUB_WORKSPACE\iscc.log" -Encoding utf8
           $out | ForEach-Object { Write-Host $_ }
+
           if ($code -ne 0) {
-            $text = $out | Out-String
-            if ($text.Length -gt 1600) { $text = $text.Substring($text.Length - 1600) }
-            throw "Inno Setup failed with exit code $code.`n$text"
+            Write-Host "##[error]Inno Setup failed with exit code $code"
+            $out | ForEach-Object { Write-Host "##[error]$_" }
+            exit 1
           }
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\GameLauncherSetup.exe")) {
-            throw "GameLauncherSetup.exe was not produced. See the iscc-log artifact."
+            Write-Host "##[error]GameLauncherSetup.exe was not produced."
+            exit 1
           }
           Write-Host "Installer produced: $env:GITHUB_WORKSPACE\GameLauncherSetup.exe"
 
