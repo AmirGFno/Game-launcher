@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-and-release:
@@ -30,12 +31,85 @@ jobs:
           -p:PublishSingleFile=true
           -o "${{ github.workspace }}/publish"
 
-      - name: Create ZIP archive
+      # ---- Portable build -------------------------------------------------
+      - name: Create ZIP archive (portable)
         run: Compress-Archive -Path "${{ github.workspace }}/publish/*" -DestinationPath "${{ github.workspace }}/GameLauncher.zip"
 
+      # ---- Installer ------------------------------------------------------
+      - name: Install Inno Setup
+        run: |
+          curl.exe -L --fail --silent --show-error `
+            -o "$env:TEMP\innosetup.exe" `
+            "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup.exe" `
+            -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/RESTARTAPPLICATIONS" `
+            -Wait
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe was not found after installing Inno Setup." }
+          Write-Host "Using Inno Setup compiler: $iscc"
+
+      - name: Compile installer
+        run: |
+          # Resolve the compiler here as well - relying on GITHUB_ENV for the path
+          # proved unreliable.
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            Write-Host "##[error]ISCC.exe was not found on this runner."
+            exit 1
+          }
+          Write-Host "Compiling installer with: $iscc"
+
+          $out = & $iscc "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
+          $code = $LASTEXITCODE
+          $text = $out | Out-String
+          [System.IO.File]::WriteAllText("$env:GITHUB_WORKSPACE\iscc.log", $text)
+
+          if ($code -ne 0) {
+            # Surface the compiler output through annotations (chunked + base64) so
+            # the failure reason is readable from the run summary.
+            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))
+            Write-Host "##[error]Inno Setup failed with exit code $code"
+            $i = 0
+            while ($i -lt $b64.Length) {
+              $chunk = $b64.Substring($i, [Math]::Min(240, $b64.Length - $i))
+              Write-Host "##[error]LOG $i $chunk"
+              $i += 240
+            }
+            exit 1
+          }
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\GameLauncherSetup.exe")) {
+            Write-Host "##[error]GameLauncherSetup.exe was not produced."
+            exit 1
+          }
+          Write-Host "Installer produced: $env:GITHUB_WORKSPACE\GameLauncherSetup.exe"
+
+      - name: Upload Inno Setup log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iscc-log
+          path: iscc.log
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # ---- Release --------------------------------------------------------
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: GameLauncher.zip
+          files: |
+            GameLauncher.zip
+            GameLauncherSetup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true

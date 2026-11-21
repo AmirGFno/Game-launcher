@@ -9,6 +9,7 @@ obj/
 artifacts/
 publish/
 *.zip
+/GameLauncherSetup.exe
 
 # Build results
 [Dd]ebug/

@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using GameLauncher.Converters;
+using GameLauncher.Models;
 using GameLauncher.ViewModels;
 
 namespace GameLauncher;
@@ -12,9 +13,11 @@ namespace GameLauncher;
 public partial class MainWindow : Window
 {
     private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(280));
+    private static readonly Duration TitleAnimationDuration = new(TimeSpan.FromMilliseconds(340));
 
     private readonly MainViewModel _viewModel;
     private readonly SemaphoreSlim _fadeGate = new(1, 1);
+    private readonly SemaphoreSlim _titleGate = new(1, 1);
     private readonly DispatcherTimer _spinnerTimer;
 
     public MainWindow(MainViewModel viewModel)
@@ -40,7 +43,7 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // First background is set without an animation.
+        // The first background is shown without a transition.
         ShowInitialBackground(_viewModel.SelectedGame?.BackgroundPath);
 
         UpdateMaximizeIcon();
@@ -60,13 +63,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        await FadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        string? path = _viewModel.SelectedGame?.BackgroundPath;
+
+        // Background cross-fade and title slide-in run side by side.
+        Task backgroundTransition = FadeBackgroundAsync(path);
+        Task titleTransition = AnimateTitleAsync();
+
+        await Task.WhenAll(backgroundTransition, titleTransition);
 
         if (_viewModel.SelectedGame is not null)
         {
             GamesListBox.ScrollIntoView(_viewModel.SelectedGame);
         }
     }
+
+    #region Background transitions
 
     /// <summary>
     /// Fades the current background out, swaps the image and fades the new one in.
@@ -104,16 +115,16 @@ public partial class MainWindow : Window
         BackgroundImage.Opacity = 0;
     }
 
-    private Task FadeAsync(double to)
+    private async Task FadeAsync(double to)
     {
-        if (Math.Abs(BackgroundImage.Opacity - to) < 0.01)
+        if (Math.Abs(BackgroundImageOpacity - to) < 0.01)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var animation = new DoubleAnimation(BackgroundImage.Opacity, to, FadeDuration)
+        var animation = new DoubleAnimation(BackgroundImageOpacity, to, FadeDuration)
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
@@ -121,60 +132,72 @@ public partial class MainWindow : Window
         animation.Completed += (_, _) => completion.TrySetResult(true);
         BackgroundImage.BeginAnimation(UIElement.OpacityProperty, animation);
 
-        return completion.Task;
+        // The Completed event is reliable, but never let a transition deadlock the UI.
+        await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMilliseconds(800)));
     }
 
-    private void OnSpinnerTick(object? sender, EventArgs e)
-    {
-        if (Spinner.RenderTransform is RotateTransform rotate)
-        {
-            rotate.Angle = (rotate.Angle + 5) % 360;
-        }
-    }
+    private double BackgroundImageOpacity => BackgroundImage.Opacity;
+
+    #endregion
+
+    #region Title animation
 
     /// <summary>
-    /// The carousel scrolls sideways, so the vertical mouse wheel is translated
-    /// into a horizontal scroll.
+    /// Slides the title up into place with a soft fade whenever the selection changes.
     /// </summary>
-    private void GamesListBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private async Task AnimateTitleAsync()
     {
-        if (sender is not System.Windows.Controls.ListBox listBox)
-        {
-            return;
-        }
+        await _titleGate.WaitAsync();
 
-        System.Windows.Controls.ScrollViewer? scrollViewer =
-            FindVisualChild<System.Windows.Controls.ScrollViewer>(listBox);
-        if (scrollViewer is null)
+        try
         {
-            return;
-        }
+            TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
+            TitlePanel.Opacity = 0;
 
-        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - e.Delta);
-        e.Handled = true;
+            var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            transform.Y = 14;
+            TitlePanel.RenderTransform = transform;
+
+            var storyboard = new Storyboard();
+
+            var fade = new DoubleAnimation(0, 1, TitleAnimationDuration)
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(fade, TitlePanel);
+            Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
+
+            var slide = new DoubleAnimation(14, 0, TitleAnimationDuration)
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(slide, TitlePanel);
+            Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
+
+            storyboard.Children.Add(fade);
+            storyboard.Children.Add(slide);
+
+            await RunStoryboardAsync(storyboard);
+        }
+        finally
+        {
+            _titleGate.Release();
+        }
     }
 
-    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    private static async Task RunStoryboardAsync(Storyboard storyboard)
     {
-        int count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            if (child is T match)
-            {
-                return match;
-            }
+        storyboard.Completed += (_, _) => completion.TrySetResult(true);
+        storyboard.Begin();
 
-            T? result = FindVisualChild<T>(child);
-            if (result is not null)
-            {
-                return result;
-            }
-        }
-
-        return null;
+        await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMilliseconds(900)));
     }
+
+    #endregion
+
+    #region Input
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -183,15 +206,82 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Right)
+        switch (e.Key)
         {
-            _viewModel.MoveNext();
-            e.Handled = true;
+            case Key.Right:
+                _viewModel.MoveNext();
+                e.Handled = true;
+                break;
+
+            case Key.Left:
+                _viewModel.MovePrevious();
+                e.Handled = true;
+                break;
+
+            case Key.Enter:
+                _viewModel.PlayCommand.Execute(null);
+                e.Handled = true;
+                break;
         }
-        else if (e.Key == Key.Left)
+    }
+
+    /// <summary>
+    /// The mouse wheel browses through the library (the selected tile is always
+    /// scrolled into view).
+    /// </summary>
+    private void GamesListBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_viewModel.IsCleaning)
+        {
+            return;
+        }
+
+        if (e.Delta > 0)
         {
             _viewModel.MovePrevious();
-            e.Handled = true;
+        }
+        else if (e.Delta < 0)
+        {
+            _viewModel.MoveNext();
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Double-clicking a tile launches that game. The click count is used instead of a
+    /// <c>MouseDoubleClick</c> handler because that event lives on <c>Control</c>, and a
+    /// plain <c>Grid</c> is not a <c>Control</c>.
+    /// </summary>
+    private void GameTile_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left || e.ClickCount < 2 || _viewModel.IsCleaning)
+        {
+            return;
+        }
+
+        if (sender is System.Windows.Controls.Button)
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement element && element.DataContext is GameItem game)
+        {
+            _viewModel.SelectedGame = game;
+        }
+
+        _viewModel.PlayCommand.Execute(null);
+    }
+
+    #endregion
+
+    #region Window chrome
+
+    private void OnSpinnerTick(object? sender, EventArgs e)
+    {
+        if (Spinner.RenderTransform is RotateTransform rotate)
+        {
+            rotate.Angle = (rotate.Angle + 5) % 360;
         }
     }
 
@@ -259,14 +349,20 @@ public partial class MainWindow : Window
 
     private void UpdateMaximizeIcon()
     {
-        if (MaximizeIcon is null)
-        {
-            return;
-        }
+            if (MaximizeIcon is null)
+            {
+                return;
+            }
 
+            // Restore the "restore" glyph once the window goes back to its
+            // normal size (the same shape doubles as the maximize glyph).
+
+        // Maximized = two overlapping squares (restore), normal = one square.
         MaximizeIcon.Data = Geometry.Parse(
             WindowState == WindowState.Maximized
                 ? "M11,5 H19 V13 H17 V7 H11 Z M9,11 H17 V21 H9 Z"
                 : "M6,6 H20 V20 H6 Z");
     }
+
+    #endregion
 }

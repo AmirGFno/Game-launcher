@@ -35,7 +35,7 @@ public partial class App : System.Windows.Application
     {
         System.Windows.MessageBox.Show(
             $"An unexpected error occurred:\n\n{e.Exception.Message}",
-            "Game Launcher",
+            "GFno Launcher",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Error);
 

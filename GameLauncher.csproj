@@ -10,9 +10,28 @@
     <!-- FolderBrowserDialog (System.Windows.Forms) is used to pick the optional game cache folder. -->
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>GameLauncher</RootNamespace>
-    <AssemblyName>GameLauncher</AssemblyName>
+    <AssemblyName>GFnoLauncher</AssemblyName>
+    <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
+    <Product>GFno Launcher</Product>
+    <Title>GFno Launcher</Title>
+    <Description>A minimalist, PlayStation-5-style Windows game launcher.</Description>
+    <Version>1.1.0</Version>
+    <Copyright>GFno</Copyright>
+    <Company>GFno</Company>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Used to read the icon embedded in a game executable (System.Drawing.Icon). -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Referenced as loose files by XAML (window icon / title-bar icon) and by the
+         Inno Setup script, so they must be copied next to the published executable.
+         Update the SDK's auto-generated None item rather than adding a duplicate. -->
+    <None Update="Assets\icon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
