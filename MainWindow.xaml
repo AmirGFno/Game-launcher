@@ -68,13 +68,14 @@
         <Image x:Name="BackgroundFront" Style="{StaticResource KenBurnsImageStyle}"
                Opacity="0" Panel.ZIndex="2" />
 
-        <!-- ============ Layer 3: bottom-to-top readability gradient ============ -->
+        <!-- ============ Layer 3: bottom-to-top readability gradient (kept light so
+             the wallpaper stays visible) ============ -->
         <Rectangle Panel.ZIndex="3">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#000B0E14" Offset="0" />
-                    <GradientStop Color="#990B0E14" Offset="0.55" />
-                    <GradientStop Color="#F50B0E14" Offset="1" />
+                    <GradientStop Color="#330B0E14" Offset="0.55" />
+                    <GradientStop Color="#990B0E14" Offset="1" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
@@ -90,7 +91,7 @@
             <Grid Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#FF0B0E14" Offset="0" />
+                        <GradientStop Color="#990B0E14" Offset="0" />
                         <GradientStop Color="#000B0E14" Offset="1" />
                     </LinearGradientBrush>
                 </Grid.Background>
@@ -112,7 +113,7 @@
                     <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Add game"
                             Command="{Binding AddGameCommand}" Margin="0,0,20,0">
                         <Path Data="M7,3 H9 V7 H13 V9 H9 V13 H7 V9 H3 V7 H7 Z" Fill="#FFFFFFFF"
-                              Width="16" Height="16" Stretch="Uniform" />
+                              Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />
                     </Button>
                     <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Minimize"
                             Click="MinimizeButton_Click">
@@ -162,7 +163,7 @@
                             Grid.Row="1"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,0,10"
+                            Margin="0,0,0,4"
                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel.RenderTransform>
                         <TranslateTransform Y="14" />
@@ -234,13 +235,6 @@
                                     </Setter.Value>
                                 </Setter>
                                 <Setter Property="Opacity" Value="0.6" />
-                                <!-- Pulsing accent glow behind the selected logo (invisible otherwise). -->
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect BlurRadius="26" ShadowDepth="0"
-                                                          Color="#FF2D9CDB" Opacity="0" />
-                                    </Setter.Value>
-                                </Setter>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -269,12 +263,6 @@
                                                             <CubicEase EasingMode="EaseOut" />
                                                         </DoubleAnimation.EasingFunction>
                                                     </DoubleAnimation>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                            <BeginStoryboard>
-                                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                                    <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
-                                                                     From="0.2" To="0.6" Duration="0:0:1.6" />
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </Trigger.EnterActions>
@@ -316,9 +304,12 @@
                                         <Image.Clip>
                                             <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />
                                         </Image.Clip>
+                                        <!-- Soft glow tinted with the logo's dominant colour
+                                             (ImageColorExtractor); pulses while selected. -->
                                         <Image.Effect>
-                                            <DropShadowEffect BlurRadius="22" ShadowDepth="0"
-                                                              Color="Black" Opacity="0.55" />
+                                            <DropShadowEffect BlurRadius="28" ShadowDepth="0"
+                                                              Color="{Binding LogoPath, Converter={StaticResource DominantColorConverter}}"
+                                                              Opacity="0" />
                                         </Image.Effect>
                                     </Image>
 
@@ -337,37 +328,43 @@
             </Grid>
         </Grid>
 
-        <!-- ============ Layer 5: fade-out shadow along the very bottom edge ============ -->
+        <!-- ============ Layer 5: light fade-out along the very bottom edge ============ -->
         <Rectangle VerticalAlignment="Bottom" Height="150" IsHitTestVisible="False"
                    Panel.ZIndex="5">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#00000000" Offset="0" />
-                    <GradientStop Color="#00000000" Offset="0.55" />
-                    <GradientStop Color="#F50B0E14" Offset="1" />
+                    <GradientStop Color="#000B0E14" Offset="0" />
+                    <GradientStop Color="#000B0E14" Offset="0.55" />
+                    <GradientStop Color="#8C0B0E14" Offset="1" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
 
-        <!-- ============ Layer 6: bottom-right actions: Edit / Delete (icon only) ============ -->
+        <!-- ============ Layer 6: bottom-right actions: Reorder / Edit / Delete ============ -->
         <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
                     Margin="0,0,28,28" Panel.ZIndex="6">
+            <Button Style="{StaticResource ReorderButtonStyle}" ToolTip="Reorder mode"
+                    Command="{Binding ToggleReorderCommand}" Margin="0,0,10,0">
+                <Path Data="M2,5 H11 M8,2 L11,5 L8,8 M14,11 H3 M6,8 L3,11 L6,14"
+                      Stroke="#FFFFFFFF" StrokeThickness="1.2" Fill="Transparent"
+                      Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />
+            </Button>
             <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Edit selected game"
                     Command="{Binding EditGameCommand}" Margin="0,0,10,0">
                 <Path Data="M2,11.5 V14 H4.5 L11.87,6.63 L9.37,4.13 Z M13.8,4.69 C14.06,4.43 14.06,4.01 13.8,3.75 L12.24,2.19 C11.98,1.93 11.56,1.93 11.3,2.19 L10.08,3.41 L12.58,5.91 Z"
-                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" />
+                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />
             </Button>
             <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Delete selected game"
                     Command="{Binding DeleteGameCommand}">
                 <Path Data="M4,12.7 C4,13.4 4.6,14 5.3,14 H10.7 C11.4,14 12,13.4 12,12.7 V4.7 H4 Z M12.7,2.7 H10.3 L9.7,2 H6.3 L5.7,2.7 H3.3 V4 H12.7 Z"
-                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" />
+                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />
             </Button>
         </StackPanel>
 
         <!-- ============ Hint ============ -->
         <TextBlock VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,34"
                    Panel.ZIndex="6"
-                   Text="Enter / Double-click — Launch      Scroll — Browse"
+                   Text="{Binding ReorderHint}"
                    FontSize="12" Foreground="#FF9FB0CC" IsHitTestVisible="False">
             <TextBlock.Effect>
                 <DropShadowEffect BlurRadius="8" ShadowDepth="0" Color="Black" Opacity="0.7" />

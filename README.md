@@ -23,8 +23,12 @@ PlayStation-5-style carousel.
   `%LocalAppData%\GameLauncher\Images`. Invalid links and network failures are reported.
 - **Launch your way** — press **Enter** or **double-click** a logo. `←` / `→` and the mouse
   wheel browse the library; a single click selects.
-- **Buttery animations** — springy scale-up of the selected tile, a pulsing glow behind it,
-  hover lift + glow, cross-fading backgrounds and a slide-up title on every change.
+- **Buttery animations** — springy scale-up of the selected tile, a pulsing glow behind it
+  tinted with the logo's **dominant colour**, hover lift + glow, cross-fading backgrounds and a
+  slide-up title on every change.
+- **Reorder mode** — the **↔** button (bottom-right) toggles reorder mode: `←` / `→` (or the
+  mouse wheel) then move the selected game within the library, `Esc` leaves the mode. The new
+  order is saved automatically.
 - **Automatic pre-launch cleanup** of `%TEMP%`, `C:\Windows\Temp` and an optional per-game
   cache folder, with a modal progress overlay and a **Cancel** button.
 - **Persistent library** stored as JSON in `%LocalAppData%\GameLauncher\library.json`.
@@ -130,7 +134,8 @@ GameLauncher/
 ├── MainWindow.xaml(.cs)         # dashboard: Ken Burns background, carousel, animations
 ├── Models/                      # GameItem, GameTarget
 ├── Services/                    # library persistence, temp cleaner, launcher,
-│                                #   game info extraction, dialogs abstraction
+│                                #   game info extraction, dialogs abstraction,
+│                                #   dominant-colour extraction
 ├── ViewModels/                  # ObservableObject, RelayCommand(+Async), MainViewModel,
 │                                #   GameEditorViewModel
 ├── Views/                       # DialogService, GameEditorWindow
@@ -155,10 +160,10 @@ on `windows-latest` whenever a tag matching `v*` is pushed, then:
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.2.0"
-git tag v1.2.0
+git commit -am "Release v1.4.0"
+git tag v1.4.0
 git push origin main
-git push origin v1.2.0
+git push origin v1.4.0
 ```
 
 `GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional
@@ -176,7 +181,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ## Notes
 
-- **Keyboard** — `←` / `→` browse, `Enter` launches, double-click launches.
+- **Keyboard** — `←` / `→` browse, `Enter` launches, double-click launches. With the **↔**
+  reorder button active, `←` / `→` move the selected game instead and `Esc` exits the mode.
 - Deleting a game asks for confirmation first.
 - Backgrounds and logos are referenced by path; missing artwork falls back to the built-in
   gradient and a placeholder glyph.

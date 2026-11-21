@@ -209,18 +209,48 @@ public partial class MainWindow : Window
         switch (e.Key)
         {
             case Key.Right:
-                _viewModel.MoveNext();
+                if (_viewModel.IsReordering)
+                {
+                    _viewModel.ReorderSelected(1);
+                }
+                else
+                {
+                    _viewModel.MoveNext();
+                }
+
                 e.Handled = true;
                 break;
 
             case Key.Left:
-                _viewModel.MovePrevious();
+                if (_viewModel.IsReordering)
+                {
+                    _viewModel.ReorderSelected(-1);
+                }
+                else
+                {
+                    _viewModel.MovePrevious();
+                }
+
                 e.Handled = true;
                 break;
 
+            case Key.Escape:
+                if (_viewModel.IsReordering)
+                {
+                    _viewModel.IsReordering = false;
+                    e.Handled = true;
+                }
+
+                break;
+
             case Key.Enter:
-                _viewModel.PlayCommand.Execute(null);
-                e.Handled = true;
+                // While reordering, Enter must not launch the game by accident.
+                if (!_viewModel.IsReordering)
+                {
+                    _viewModel.PlayCommand.Execute(null);
+                    e.Handled = true;
+                }
+
                 break;
         }
     }
@@ -236,7 +266,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Delta > 0)
+        if (_viewModel.IsReordering)
+        {
+            // In reorder mode the wheel moves the selected game, like the arrows.
+            _viewModel.ReorderSelected(e.Delta > 0 ? -1 : 1);
+        }
+        else if (e.Delta > 0)
         {
             _viewModel.MovePrevious();
         }

@@ -11,6 +11,7 @@
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
             <converters:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibilityConverter" />
             <converters:DesaturatedImagePathConverter x:Key="DesaturatedImagePathConverter" />
+            <converters:DominantColorConverter x:Key="DominantColorConverter" />
 
             <!-- ============ Brushes ============ -->
             <SolidColorBrush x:Key="AccentBrush" Color="#FF2D9CDB" />
@@ -95,10 +96,12 @@
                 </Setter>
             </Style>
 
-            <!-- ============ Bottom-left action button (icon only) ============ -->
+            <!-- ============ Small icon-only action button (Add / Edit / Delete / Reorder) ============
+                 A fixed 36x36 transparent box. The template's Border fills the whole
+                 box, so the entire area is the click target - not just the glyph. -->
             <Style x:Key="ActionButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="32" />
-                <Setter Property="Height" Value="32" />
+                <Setter Property="Width" Value="36" />
+                <Setter Property="Height" Value="36" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -106,7 +109,16 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -118,6 +130,31 @@
                         <Setter Property="Opacity" Value="0.18" />
                     </Trigger>
                 </Style.Triggers>
+            </Style>
+
+            <!-- ============ Reorder toggle: lights up while reorder mode is active ============ -->
+            <Style x:Key="ReorderButtonStyle" TargetType="Button"
+                   BasedOn="{StaticResource ActionButtonStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#14FFFFFF" />
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsReordering}" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#26FFFFFF" />
+                                    <Setter Property="Opacity" Value="1" />
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <!-- ============ Window chrome button (min / max / close) ============
@@ -147,7 +184,10 @@
             </Style>
 
             <!-- ============ Carousel logo image ============
-                 Colour image when selected, desaturated when not. -->
+                 Colour image when selected, desaturated when not. The glow that
+                 surrounds the tile lives in the DataTemplate (so every tile owns its
+                 own DropShadowEffect and can be animated independently); its colour
+                 is the logo's dominant colour. -->
             <Style x:Key="CarouselImageStyle" TargetType="Image">
                 <Setter Property="Source"
                         Value="{Binding LogoPath, Converter={StaticResource ImagePathConverter}}" />
@@ -158,6 +198,26 @@
                                  Value="False">
                         <Setter Property="Source"
                                 Value="{Binding LogoPath, Converter={StaticResource DesaturatedImagePathConverter}}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                                 Value="True">
+                        <!-- Soft pulse on the tile's glow (Effect.Opacity) while selected. -->
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
+                                                     From="0.15" To="0.6" Duration="0:0:1.6" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity"
+                                                     To="0" Duration="0:0:0.22" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
