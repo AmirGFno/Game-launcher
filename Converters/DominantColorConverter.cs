@@ -8,8 +8,9 @@ namespace GameLauncher.Converters;
 
 /// <summary>
 /// Turns a logo path into the dominant colour of that logo. Used to tint the
-/// <see cref="DropShadowEffect.Color"/> of the selected carousel tile, so the glow
-/// matches the artwork. Falls back to the extractor's default accent colour.
+/// <see cref="System.Windows.Media.DropShadowEffect.Color"/> of the selected
+/// carousel tile, so the glow matches the artwork. Falls back to the extractor's
+/// default accent colour.
 /// </summary>
 public sealed class DominantColorConverter : IValueConverter
 {
@@ -20,7 +21,9 @@ public sealed class DominantColorConverter : IValueConverter
             return ImageColorExtractor.DefaultAccent;
         }
 
-        BitmapImage? image = ImageLoader.Load(path);
+        // Small decode (logos are capped at 256px), and it warms the cache used by
+        // the carousel tile itself.
+        BitmapImage? image = ImageLoader.Load(path, ImageLoader.MaxLogoWidth);
         return image is null
             ? ImageColorExtractor.DefaultAccent
             : ImageColorExtractor.ExtractDominantColor(image);

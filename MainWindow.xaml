@@ -1,6 +1,7 @@
 <Window x:Class="GameLauncher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:GameLauncher.Controls"
         Title="GFno Launcher"
         Width="1280" Height="800"
         WindowStyle="None"
@@ -299,19 +300,21 @@
                                       ClipToBounds="False"
                                       ToolTip="{Binding Title}"
                                       PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
-                                    <Image Style="{StaticResource CarouselImageStyle}"
-                                           ClipToBounds="False">
-                                        <Image.Clip>
+                                    <controls:AsyncImage Style="{StaticResource CarouselImageStyle}"
+                                                         Path="{Binding LogoPath}"
+                                                         MaxWidth="256"
+                                                         ClipToBounds="False">
+                                        <controls:AsyncImage.Clip>
                                             <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />
-                                        </Image.Clip>
+                                        </controls:AsyncImage.Clip>
                                         <!-- Soft glow tinted with the logo's dominant colour
                                              (ImageColorExtractor); pulses while selected. -->
-                                        <Image.Effect>
+                                        <controls:AsyncImage.Effect>
                                             <DropShadowEffect BlurRadius="28" ShadowDepth="0"
                                                               Color="{Binding LogoPath, Converter={StaticResource DominantColorConverter}}"
                                                               Opacity="0" />
-                                        </Image.Effect>
-                                    </Image>
+                                        </controls:AsyncImage.Effect>
+                                    </controls:AsyncImage>
 
                                     <!-- Fallback glyph when the game has no logo -->
                                     <Grid Width="56" Height="56"

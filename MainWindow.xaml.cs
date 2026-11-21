@@ -1,9 +1,13 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 using GameLauncher.Converters;
 using GameLauncher.Models;
 using GameLauncher.ViewModels;
@@ -20,6 +24,14 @@ public partial class MainWindow : Window
 
     // The two background layers: exactly one is on top (the last one faded in).
     private System.Windows.Controls.Image _frontLayer = null!;
+
+    // Incremented on every background request so a slow decode started for a game
+    // the user has already left cannot overwrite the newer transition.
+    private int _backgroundGeneration;
+
+    // System-tray icon: closing the window hides it instead of quitting.
+    private System.Windows.Forms.NotifyIcon? _trayIcon;
+    private bool _isQuitting;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -45,7 +57,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _frontLayer = BackgroundBack;
-        ShowInitialBackground(_viewModel.SelectedGame?.BackgroundPath);
+        _ = ShowInitialBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
 
         // The library may already have loaded (and selected a game) before the
         // window subscribed, so animate the title here as well.
@@ -56,12 +68,31 @@ public partial class MainWindow : Window
 
         UpdateMaximizeIcon();
         _spinnerTimer.Start();
+        EnsureTrayIcon();
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _spinnerTimer.Stop();
+        DisposeTrayIcon();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        // The window is never really closed: it just hides to the system tray.
+        // Only the tray's "Quit" entry (or a real shutdown) ends the process.
+        // Without a tray icon there would be no way back, so fall back to a real
+        // close in that (unlikely) case.
+        if (!_isQuitting && _trayIcon is not null)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
+        DisposeTrayIcon();
+        base.OnClosing(e);
     }
 
     /// <summary>
@@ -76,7 +107,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        CrossFadeBackground(_viewModel.SelectedGame?.BackgroundPath);
+        _ = CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
         AnimateTitle();
 
         if (_viewModel.SelectedGame is not null)
@@ -89,11 +120,14 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// True cross-fade between the two background layers, so the screen never goes
-    /// dark between games. Interruptible: starting a new fade replaces whatever the
-    /// previous one was doing, from the opacity values it reached so far.
+    /// dark between games. The wallpaper is decoded off the UI thread and cached;
+    /// a request started for a game the user has already left is discarded, so rapid
+    /// Left/Right navigation never falls behind the actual selection.
     /// </summary>
-    private void CrossFadeBackground(string? path)
+    private async Task CrossFadeBackgroundAsync(string? path)
     {
+        int generation = ++_backgroundGeneration;
+
         System.Windows.Controls.Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
         System.Windows.Controls.Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
 
@@ -101,10 +135,20 @@ public partial class MainWindow : Window
         double incomingFrom = incoming.Opacity;
         double outgoingFrom = outgoing.Opacity;
 
+        BitmapImage? image = await ImageLoader
+            .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
+            .ConfigureAwait(true);
+
+        // A newer navigation has taken over - leave the layers to it.
+        if (generation != _backgroundGeneration)
+        {
+            return;
+        }
+
         incoming.BeginAnimation(UIElement.OpacityProperty, null);
         outgoing.BeginAnimation(UIElement.OpacityProperty, null);
 
-        incoming.Source = ImageLoader.Load(path);
+        incoming.Source = image;
         incoming.Opacity = incomingFrom;
         outgoing.Opacity = outgoingFrom;
 
@@ -138,19 +182,156 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Shows the very first background without any transition.</summary>
-    private void ShowInitialBackground(string? path)
+    private async Task ShowInitialBackgroundAsync(string? path)
     {
+        int generation = ++_backgroundGeneration;
+
+        BitmapImage? image = await ImageLoader
+            .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
+            .ConfigureAwait(true);
+
+        // A selection change already took over the background.
+        if (generation != _backgroundGeneration)
+        {
+            return;
+        }
+
         BackgroundBack.BeginAnimation(UIElement.OpacityProperty, null);
         BackgroundFront.BeginAnimation(UIElement.OpacityProperty, null);
         System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 2);
         System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 1);
 
-        BackgroundBack.Source = ImageLoader.Load(path);
+        if (image is not null)
+        {
+            BackgroundBack.Source = image;
+        }
+
         BackgroundBack.Opacity = 1;
         BackgroundFront.Source = null;
         BackgroundFront.Opacity = 0;
 
         _frontLayer = BackgroundBack;
+    }
+
+    #endregion
+
+    #region System tray
+
+    /// <summary>
+    /// Creates the notify icon used to keep the launcher running in the background.
+    /// Created from <c>Loaded</c> so the dispatcher loop is already running.
+    /// </summary>
+    private void EnsureTrayIcon()
+    {
+        if (_trayIcon is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            System.Drawing.Icon? icon = LoadTrayIcon();
+            if (icon is null)
+            {
+                return;
+            }
+
+            var tray = new System.Windows.Forms.NotifyIcon
+            {
+                Icon = icon,
+                Text = "GFno Launcher",
+                Visible = true
+            };
+
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            menu.Items.Add("Open GFno Launcher", null, new EventHandler((_, _) => ShowFromTray()));
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add("Quit", null, new EventHandler((_, _) => QuitFromTray()));
+            tray.ContextMenuStrip = menu;
+
+            tray.MouseDoubleClick += (_, _) => ShowFromTray();
+            tray.MouseClick += (_, e) =>
+            {
+                // Some shells only raise MouseClick, so treat a double click there too.
+                if (e.Clicks == 2)
+                {
+                    ShowFromTray();
+                }
+            };
+
+            _trayIcon = tray;
+        }
+        catch
+        {
+            // No tray icon - the launcher still works, it just cannot hide to tray.
+        }
+    }
+
+    private void ShowFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void QuitFromTray()
+    {
+        _isQuitting = true;
+        DisposeTrayIcon();
+        Application.Current.Shutdown();
+    }
+
+    private void DisposeTrayIcon()
+    {
+        if (_trayIcon is null)
+        {
+            return;
+        }
+
+        _trayIcon.Visible = false;
+        _trayIcon.Dispose();
+        _trayIcon = null;
+    }
+
+    /// <summary>
+    /// The tray icon comes from the executable's own icon (the same
+    /// <c>Assets/icon.ico</c> the compiler embeds), with the embedded resource as a
+    /// fallback for single-file publishes.
+    /// </summary>
+    private static System.Drawing.Icon? LoadTrayIcon()
+    {
+        try
+        {
+            string? executable = Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(executable) && File.Exists(executable))
+            {
+                using System.Drawing.Icon? extracted = System.Drawing.Icon.ExtractAssociatedIcon(executable);
+                if (extracted is not null)
+                {
+                    return new System.Drawing.Icon(extracted, extracted.Width, extracted.Height);
+                }
+            }
+        }
+        catch
+        {
+            // Fall through to the embedded resource.
+        }
+
+        try
+        {
+            Stream? stream = System.Reflection.Assembly.GetEntryAssembly()?
+                .GetManifestResourceStream("GameLauncher.Assets.icon.ico");
+            if (stream is not null)
+            {
+                return new System.Drawing.Icon(stream);
+            }
+        }
+        catch
+        {
+            // No tray icon - the launcher still works, it just cannot hide to tray.
+        }
+
+        return null;
     }
 
     #endregion

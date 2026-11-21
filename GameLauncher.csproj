@@ -16,7 +16,7 @@
     <Product>GFno Launcher</Product>
     <Title>GFno Launcher</Title>
     <Description>A minimalist, PlayStation-5-style Windows game launcher.</Description>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Copyright>GFno</Copyright>
     <Company>GFno</Company>
   </PropertyGroup>
@@ -24,6 +24,9 @@
   <ItemGroup>
     <!-- Used to read the icon embedded in a game executable (System.Drawing.Icon). -->
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <!-- Pure-managed image library: adds WebP decoding (and a fallback for any
+         format WPF cannot read) on top of WPF's built-in PNG/JPEG/BMP/GIF/ICO. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.3" />
   </ItemGroup>
 
   <ItemGroup>
