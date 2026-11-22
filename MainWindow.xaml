@@ -319,6 +319,11 @@
         <!-- ============ Layer 6: bottom-right actions: Reorder / Edit / Delete ============ -->
         <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
                     Margin="0,0,28,28" Panel.ZIndex="6">
+            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Clean the app cache (optional)"
+                    Command="{Binding CleanCacheCommand}" Margin="0,0,10,0">
+                <Path Data="M8,2.5 L9.3,6.7 L13.5,8 L9.3,9.3 L8,13.5 L6.7,9.3 L2.5,8 L6.7,6.7 Z"
+                      Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />
+            </Button>
             <Button Style="{StaticResource ReorderButtonStyle}" ToolTip="Reorder mode"
                     Command="{Binding ToggleReorderCommand}" Margin="0,0,10,0">
                 <Path Data="M2,5 H11 M8,2 L11,5 L8,8 M14,11 H3 M6,8 L3,11 L6,14"

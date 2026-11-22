@@ -11,8 +11,9 @@ namespace GameLauncher.Converters;
 /// Loads, downscales and caches the artwork used by the launcher.
 /// <para>
 /// Decoding runs on a worker thread (<see cref="LoadAsync"/>) so a multi-megapixel
-/// background never freezes the UI, and every decoded image is kept in memory so
-/// navigating back to an already seen game is a cheap dictionary lookup.
+/// background never freezes the UI. The cache is bounded (<see cref="MaxCacheBytes"/>)
+/// and keyed by the source file's write time and length, so a changed file is
+/// re-decoded automatically instead of showing a stale image forever.
 /// </para>
 /// </summary>
 public static class ImageLoader
@@ -23,8 +24,16 @@ public static class ImageLoader
     /// <summary>Carousel logos are displayed at 120px; 256 keeps them crisp.</summary>
     public const int MaxLogoWidth = 256;
 
-    private static readonly ConcurrentDictionary<string, BitmapSource> Cache =
+    /// <summary>Approximate memory budget for decoded bitmaps (256 MB).</summary>
+    public const long MaxCacheBytes = 256L * 1024 * 1024;
+
+    private static readonly ConcurrentDictionary<string, CacheEntry> Cache =
         new(StringComparer.OrdinalIgnoreCase);
+
+    private static long _cacheBytes;
+    private static long _sequence;
+
+    private sealed record CacheEntry(BitmapSource Image, long Bytes, long Sequence);
 
     /// <summary>
     /// Synchronous, cached load. Used by value converters, which run on the UI
@@ -38,16 +47,22 @@ public static class ImageLoader
             return null;
         }
 
-        string key = Key(path, maxWidth, desaturate);
-        if (Cache.TryGetValue(key, out BitmapSource? cached))
+        string? fingerprint = Fingerprint(path);
+        if (fingerprint is null)
         {
-            return cached;
+            return null;
+        }
+
+        string key = Key(path, maxWidth, desaturate, fingerprint);
+        if (Cache.TryGetValue(key, out CacheEntry? cached))
+        {
+            return cached.Image;
         }
 
         BitmapSource? image = Decode(path, maxWidth, desaturate);
         if (image is not null)
         {
-            Cache.TryAdd(key, image);
+            Add(key, image);
         }
 
         return image;
@@ -69,10 +84,16 @@ public static class ImageLoader
             return Task.FromResult<BitmapSource?>(null);
         }
 
-        string key = Key(path, maxWidth, desaturate);
-        if (Cache.TryGetValue(key, out BitmapSource? cached))
+        string? fingerprint = Fingerprint(path);
+        if (fingerprint is null)
         {
-            return Task.FromResult(cached);
+            return Task.FromResult<BitmapSource?>(null);
+        }
+
+        string key = Key(path, maxWidth, desaturate, fingerprint);
+        if (Cache.TryGetValue(key, out CacheEntry? cached))
+        {
+            return Task.FromResult<BitmapSource?>(cached.Image);
         }
 
         return Task.Run(
@@ -82,15 +103,15 @@ public static class ImageLoader
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (Cache.TryGetValue(key, out BitmapSource? hit))
+                    if (Cache.TryGetValue(key, out CacheEntry? hit))
                     {
-                        return hit;
+                        return hit.Image;
                     }
 
                     BitmapSource? image = Decode(path, maxWidth, desaturate);
                     if (image is not null)
                     {
-                        Cache.TryAdd(key, image);
+                        Add(key, image);
                     }
 
                     return image;
@@ -104,8 +125,105 @@ public static class ImageLoader
             cancellationToken);
     }
 
-    private static string Key(string path, int maxWidth, bool desaturate)
-        => $"{maxWidth}|{(desaturate ? 1 : 0)}|{path}";
+    /// <summary>
+    /// Drops every cached variant of <paramref name="path"/>. Called after a file is
+    /// overwritten so the next load cannot reuse a stale decode.
+    /// </summary>
+    public static void Invalidate(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        string suffix = "|" + path;
+        foreach (string key in Cache.Keys.ToList())
+        {
+            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                Cache.TryRemove(key, out _);
+            }
+        }
+
+        long total = 0;
+        foreach (CacheEntry entry in Cache.Values)
+        {
+            total += entry.Bytes;
+        }
+
+        Interlocked.Exchange(ref _cacheBytes, total);
+    }
+
+    private static string Key(string path, int maxWidth, bool desaturate, string fingerprint)
+        => $"{maxWidth}|{(desaturate ? 1 : 0)}|{fingerprint}|{path}";
+
+    /// <summary>
+    /// A cheap identity for the source file. Returning <c>null</c> means the file is
+    /// missing or unreadable, so the caller must not cache anything.
+    /// </summary>
+    private static string? Fingerprint(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                return null;
+            }
+
+            return $"{info.LastWriteTimeUtc.Ticks}:{info.Length}";
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void Add(string key, BitmapSource image)
+    {
+        long bytes = EstimateBytes(image);
+        long sequence = Interlocked.Increment(ref _sequence);
+
+        if (!Cache.TryAdd(key, new CacheEntry(image, bytes, sequence)))
+        {
+            return;
+        }
+
+        Interlocked.Add(ref _cacheBytes, bytes);
+        EvictIfNeeded();
+    }
+
+    /// <summary>Removes the oldest entries until the cache is back under budget.</summary>
+    private static void EvictIfNeeded()
+    {
+        while (Interlocked.Read(ref _cacheBytes) > MaxCacheBytes)
+        {
+            string? oldestKey = null;
+            long oldestSequence = long.MaxValue;
+
+            foreach (KeyValuePair<string, CacheEntry> pair in Cache)
+            {
+                if (pair.Value.Sequence < oldestSequence)
+                {
+                    oldestSequence = pair.Value.Sequence;
+                    oldestKey = pair.Key;
+                }
+            }
+
+            if (oldestKey is null)
+            {
+                break;
+            }
+
+            if (Cache.TryRemove(oldestKey, out CacheEntry? removed))
+            {
+                Interlocked.Add(ref _cacheBytes, -removed.Bytes);
+            }
+        }
+    }
+
+    private static long EstimateBytes(BitmapSource image)
+        => (long)image.PixelWidth * image.PixelHeight * 4;
 
     private static BitmapSource? Decode(string path, int maxWidth, bool desaturate)
     {
@@ -174,14 +292,23 @@ public static class ImageLoader
     }
 
     /// <summary>
-    /// Decodes with ImageSharp (WebP and any other format WPF cannot handle) and
-    /// re-encodes to PNG in memory, which WPF then decodes at the requested size.
+    /// Decodes with ImageSharp (WebP and any other format WPF cannot handle), resizing
+    /// to <paramref name="maxWidth"/> first, then re-encodes to PNG in memory for WPF.
     /// </summary>
     private static BitmapImage? DecodeWithImageSharp(string path, int maxWidth)
     {
         try
         {
             using var image = SixLabors.ImageSharp.Image.Load(path);
+
+            // Resize *before* re-encoding so the PNG in memory (and the WPF decode)
+            // is no larger than it needs to be.
+            if (maxWidth > 0 && image.Width > maxWidth)
+            {
+                int height = Math.Max(1, (int)Math.Round(image.Height * ((double)maxWidth / image.Width)));
+                image.Mutate(context => context.Resize(maxWidth, height));
+            }
+
             using var stream = new MemoryStream();
             image.Save(stream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
             stream.Position = 0;

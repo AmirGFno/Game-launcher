@@ -1,51 +1,51 @@
 # GFno Launcher
 
-A dark, extremely minimalist, heavily animated **Windows desktop game launcher** — built with
-**C# / WPF (.NET 8)** and the **MVVM** pattern. Point it at your games (an `.exe` **or** a Steam
-URL) and it pulls the name and logo straight out of the executable, then launches with a
-PlayStation-5-style carousel.
+A dark, minimalist, animated **Windows desktop game launcher** — built with **C# / WPF on
+.NET 10** and the **MVVM** pattern. Point it at your games (an `.exe` **or** a Steam URL) and
+it pulls the name and logo straight out of the executable, then launches with a
+PlayStation-5-inspired carousel.
 
-![theme](https://img.shields.io/badge/theme-PS5--style-0b0e14) ![platform](https://img.shields.io/badge/platform-Windows-0070d1) ![framework](https://img.shields.io/badge/.NET-8-512bd4)
+![theme](https://img.shields.io/badge/theme-PS5--style-0b0e14) ![platform](https://img.shields.io/badge/platform-Windows-0070d1) ![framework](https://img.shields.io/badge/.NET-10-512bd4)
+
+> **v2.0.0-beta** — the backend has been safety-hardened and modernised (Phase 1–2 of the
+> roadmap). The React + WebView2 frontend (Phase 3–6) is the next increment.
 
 ---
 
 ## Features
 
-- **Minimalist PS5-style UI** — no play button, no clutter. Just a slowly zooming
-  (**Ken Burns**) background, the selected game's title floating just above a horizontal
-  logo carousel, and a soft fade into the dark at the bottom edge.
+- **Minimalist PS5-style UI** — a slowly zooming (**Ken Burns**) background, the selected
+  game's title floating above a horizontal logo carousel, and a soft fade into the dark.
 - **Auto game detection** — picking an `.exe` reads `FileVersionInfo.FileDescription` for the
-  title (falling back to the file name) and extracts the embedded icon with
-  `System.Drawing.Icon.ExtractAssociatedIcon`, storing it as a PNG in
+  title (falling back to the file name) and extracts the embedded icon, storing it as a PNG in
   `%LocalAppData%\GameLauncher\Icons`. Both fields stay fully editable.
-- **Artwork from a URL** — paste a direct image link into the **Logo** or **Background** field
-  and press **Download**; the file is fetched asynchronously and stored under
-  `%LocalAppData%\GameLauncher\Images`. Invalid links and network failures are reported.
+- **Artwork from a URL** — paste a direct image link into **Logo** or **Background** and press
+  **Download**; the file is fetched asynchronously and stored under
+  `%LocalAppData%\GameLauncher\Images`.
 - **Launch your way** — press **Enter** or **double-click** a logo. `←` / `→` and the mouse
   wheel browse the library; a single click selects.
-- **Buttery animations** — springy scale-up of the selected tile, a pulsing glow behind it
-  tinted with the logo's **dominant colour**, hover lift + glow, cross-fading backgrounds and a
-  slide-up title on every change.
-- **Fast artwork pipeline** — logos and wallpapers are decoded on a worker thread, downscaled
-  while decoding (max **1920px** backgrounds, **256px** logos) and cached in memory, so large 4K
-  images never block the UI or blow up RAM. Every decoded bitmap is frozen before it is bound.
-- **Off-thread colour sampling** — the logo's dominant colour is extracted on a background
-  thread, cached on the game itself and persisted in `library.json`, so the same image is never
+- **Buttery animations** — scale-up of the selected tile (a pure `RenderTransform`, so it never
+  reflows the row), a pulsing glow tinted with the logo's **dominant colour**, cross-fading
+  backgrounds and a slide-up title.
+- **Bounded artwork cache** — logos and wallpapers are decoded on a worker thread, downscaled
+  while decoding (max **1920px** backgrounds, **256px** logos) and cached with a **256 MB**
+  budget and write-time/size invalidation. Every decoded bitmap is frozen before it is bound.
+- **Off-thread colour sampling** — the dominant logo colour is extracted on a background
+  thread, cached on the game and persisted in `library.json`, so the same image is never
   sampled twice.
-- **Single instance** — a second launch simply brings the running window to the front instead of
-  opening a second copy.
-- **WebP support** — `.webp` logos and backgrounds are decoded through
-  [ImageSharp](https://github.com/SixLabors/ImageSharp) (WPF cannot read WebP on its own).
-- **Lives in the system tray** — closing the window hides it instead of quitting; double-click
-  the tray icon (or use its context menu) to bring it back, and **Quit** really exits.
-- **Reorder mode** — the **↔** button (bottom-right) toggles reorder mode: `←` / `→` (or the
-  mouse wheel) then move the selected game within the library, `Esc` leaves the mode. The new
-  order is saved automatically.
-- **Automatic pre-launch cleanup** of `%TEMP%`, `C:\Windows\Temp` and an optional per-game
-  cache folder, with a modal progress overlay and a **Cancel** button.
-- **Persistent library** stored as JSON in `%LocalAppData%\GameLauncher\library.json`.
-- **Administrator manifest** (`requireAdministrator`) so Windows Temp files can be cleaned.
-- **Installer + portable build** published automatically on every `v*` tag.
+- **Safe artwork downloads** — 25 MB response cap, streamed to a temporary file, real-image
+  validation (dimensions included) and automatic deletion of incomplete files.
+- **Safe, optional cache cleanup** — cleanup only ever touches the app's own cache folder
+  (`%LocalAppData%\GameLauncher\Cache`), shows a preview, asks for confirmation and is
+  cancellable. `%TEMP%`, `C:\Windows\Temp` and per-game folders are **never** deleted.
+- **Atomic library persistence** — `library.json` is written to a temp file and swapped in
+  atomically, with a `.bak` copy; saves are serialised so concurrent writes cannot corrupt it.
+- **Restricted launch targets** — only an explicit allowlist of protocols (`steam`, Epic,
+  Ubisoft, Origin, Battle.net, GOG Galaxy) plus `.exe` paths. Arbitrary URI schemes are
+  rejected.
+- **Runs as a standard user** — no UAC prompt, `PrivilegesRequired=lowest` installer.
+- **Single instance**, **system tray**, **WebP support**, **reorder mode**, **installer +
+  portable build** on every `v*` tag.
 
 ---
 
@@ -54,12 +54,12 @@ PlayStation-5-style carousel.
 | Requirement | Version |
 | --- | --- |
 | Windows | 10 / 11 (64-bit) |
-| .NET SDK | **8.0** or newer |
-| Visual Studio | 2022 17.8+ (optional, any editor works) |
+| .NET SDK | **10.0** or newer |
+| Visual Studio | 2022 17.14+ / VS Code (optional) |
 
-> The app requests administrator rights through `app.manifest`. Start Visual Studio (or your
-> terminal) **as administrator** when you run it locally, otherwise Windows will refuse to
-> start the process.
+> The launcher runs with **standard user** rights. Nothing it does requires elevation, so the
+> manifest requests `asInvoker` and the installer uses `lowest` privileges. A game that
+> itself needs elevation will trigger Windows' own prompt when it is launched.
 
 ---
 
@@ -77,15 +77,25 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 .\publish\GFnoLauncher.exe
 ```
 
+### Tests
+
+```powershell
+dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release
+```
+
+The suite covers launch-target validation, atomic library persistence, safe cleanup
+(path canonicalisation, protected-location rejection, cancellation), image validation and
+metadata preservation.
+
 ### First run
 
 1. Press **Add**.
 2. Press **Browse…** next to **Launch Target** and pick a game executable.
-   - The **Game Title** is filled from the executable's file description.
-   - The **Logo Image** is filled with the icon embedded in the executable.
+   - **Game Title** is filled from the executable's file description.
+   - **Logo Image** is filled with the icon embedded in the executable.
    - Either value can be overwritten by hand; pick a Steam URL
      (`steam://rungameid/12345`) instead if you prefer.
-3. Optionally set a **Background Image** and a **Custom Game Cache Folder**.
+3. Optionally set a **Background Image**.
 4. Press **Save**, then **Enter** (or double-click the logo) to play.
 
 For the **Logo Image** / **Background Image** fields you can either **Browse** for a local file
@@ -106,20 +116,14 @@ or paste a direct image URL and press **Download** — the image is stored under
   `PngBitmapEncoder` → `%LocalAppData%\GameLauncher\Icons\<guid>.png`.
 
 The editor remembers which values came from the executable, so choosing a different `.exe`
-refreshes them while anything you typed yourself is preserved.
-
-### Pre-launch cleanup
-
-Pressing **Enter** / double-clicking runs `TempCleanerService` before the game starts:
-
-1. Deletes every file and folder inside `%TEMP%` (`Path.GetTempPath()`).
-2. Deletes every file and folder inside `C:\Windows\Temp`.
-3. Deletes the contents of the game's **Custom Game Cache Folder** (when configured).
-
-Every entry is deleted inside its own `try/catch`, so locked or protected files are simply
-skipped — the launcher never crashes because of a temp file.
+refreshes them while anything you typed yourself is preserved. Saving an edit **clones** the
+existing `GameItem`, so `LastPlayed`, `LaunchCount`, favourites, categories and the cached
+dominant colour always survive.
 
 ### Launching
+
+`Models/GameTarget.cs` validates the target against an explicit allowlist before anything is
+started:
 
 ```csharp
 var startInfo = new ProcessStartInfo { UseShellExecute = true, FileName = target };
@@ -128,7 +132,33 @@ Process.Start(startInfo);
 
 `UseShellExecute = true` lets Windows resolve `steam://` URLs through the registered protocol
 handler. For `.exe` targets the working directory is set to the executable's folder, and a
-missing file produces a friendly error dialog.
+missing file produces a friendly error dialog. The launch path itself is deliberately
+lightweight: no cleanup, no artificial delay.
+
+### Safe cleanup (optional)
+
+`Services/TempCleanerService.cs` only ever cleans `%LocalAppData%\GameLauncher\Cache`:
+
+- every candidate is expanded with `Path.GetFullPath` and must lie **strictly inside** the app
+  cache root;
+- drive roots, junctions / symbolic links and protected system / personal folders
+  (`PathSafety.cs`) are rejected;
+- the UI shows a **preview** (item count + size), asks for confirmation, and the operation is
+  cancellable.
+
+The legacy **Custom Game Cache Folder** field is kept for backward compatibility but is never
+deleted automatically.
+
+### Persistence
+
+`Services/GameLibraryService.cs`:
+
+1. serialize to `library.json.tmp` and flush,
+2. atomically `File.Replace` it over `library.json`, keeping the previous file as `.bak`,
+3. serialise writers with a `SemaphoreSlim` so fire-and-forget saves cannot interleave.
+
+A corrupted file is moved to `library.json.corrupt-<timestamp>` (never deleted), so the
+library is always recoverable. The format is unchanged, so existing libraries load as-is.
 
 ---
 
@@ -136,51 +166,49 @@ missing file produces a friendly error dialog.
 
 ```
 GameLauncher/
-├── GameLauncher.csproj          # .NET 8 / WPF / WinForms / app icon / app.manifest
-├── app.manifest                 # requireAdministrator
-├── setup.iss                    # Inno Setup installer script
+├── GameLauncher.csproj          # .NET 10 / WPF / WinForms / app icon / app.manifest
+├── app.manifest                 # asInvoker (standard user)
+├── setup.iss                    # Inno Setup installer (lowest privileges)
 ├── Assets/
 │   ├── icon.ico                 # application icon (embedded in the .exe)
 │   └── icon.png                 # source artwork for the icon / window icon
 ├── App.xaml / App.xaml.cs       # styles, converters, composition root
 ├── MainWindow.xaml(.cs)         # dashboard: Ken Burns background, carousel, animations
-├── Models/                      # GameItem, GameTarget
-├── Services/                    # library persistence, temp cleaner, launcher,
-│                                #   game info extraction, dialogs abstraction,
-│                                #   dominant-colour extraction
+├── Models/                      # GameItem, GameTarget (protocol allowlist)
+├── Services/                    # library persistence, safe cache cleaner, launcher,
+│                                #   game info extraction, image download, dialogs,
+│                                #   dominant-colour extraction, path safety
 ├── Controls/                    # AsyncImage (background-thread, cached artwork)
 ├── ViewModels/                  # ObservableObject, RelayCommand(+Async), MainViewModel,
 │                                #   GameEditorViewModel
 ├── Views/                       # DialogService, GameEditorWindow
-└── Converters/                  # path → image, bool ↔ visibility
+├── Converters/                  # ImageLoader (bounded cache)
+└── tests/
+    └── GFnoLauncher.Tests/      # xUnit: targets, persistence, cleanup, images
 ```
 
 ---
 
 ## Release pipeline
 
-The workflow lives in [`.github/workflows/release.yml`](.github/workflows/release.yml). It runs
-on `windows-latest` whenever a tag matching `v*` is pushed, then:
+Two workflows live in [`.github/workflows`](.github/workflows):
 
-1. checks out the code and installs the .NET 8 SDK,
-2. publishes a **self-contained single-file** Windows executable
-   (`dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true`),
-3. zips it as **`GameLauncher.zip`** (portable),
-4. installs **Inno Setup 7**, compiles **`setup.iss`** into **`GameLauncherSetup.exe`**,
-5. creates a GitHub release with **both** files attached
-   (`softprops/action-gh-release@v2`, `contents: write`).
+- **`ci.yml`** — on every push to `main` and every pull request: builds the desktop app and
+  runs the test suite on `windows-latest` with the .NET 10 SDK.
+- **`release.yml`** — on every `v*` tag: runs the tests, publishes a **self-contained
+  single-file** Windows executable (`dotnet publish -c Release -r win-x64 --self-contained
+  true -p:PublishSingleFile=true`), zips it as **`GameLauncher.zip`**, installs **Inno Setup
+  7** and compiles **`setup.iss`** into **`GameLauncherSetup.exe`**, then attaches both to a
+  GitHub release.
 
 ### Trigger a release
 
 ```powershell
-git commit -am "Release v1.5.4"
-git tag v1.5.4
+git commit -am "Release v2.0.0"
+git tag v2.0.0
 git push origin main
-git push origin v1.5.4
+git push origin v2.0.0
 ```
-
-`GameLauncherSetup.exe` installs the launcher for all users (start-menu shortcut, optional
-desktop shortcut) and requests elevation because the launcher cleans system temp folders.
 
 ### Building the installer locally
 
@@ -192,6 +220,24 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ---
 
+## Roadmap (v2)
+
+Phase 1–2 are complete. The remaining phases are incremental:
+
+1. **Audit & preservation** — done.
+2. **Backend safety & modernisation** — done (safe cleanup, no admin, .NET 10, atomic
+   persistence, bounded cache, download validation, target allowlist, editor metadata, tests).
+3. **Frontend architecture** — React + TypeScript + Vite frontend hosted in WebView2, with a
+   typed, allowlisted message bridge and packaged local assets.
+4. **UI redesign** — dashboard/hero, carousel, library (grid + search + sort + favourites),
+   game details, editor, settings.
+5. **Performance features** — quick launch, per-game launch profiles, optional startup
+   preparation, lightweight process monitoring, real recommendations.
+6. **Final testing & release** — migration tests, portable + installer verification,
+   resolution/DPI checks.
+
+---
+
 ## Notes
 
 - **Keyboard** — `←` / `→` browse, `Enter` launches, double-click launches. With the **↔**
@@ -199,5 +245,5 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 - Deleting a game asks for confirmation first.
 - Backgrounds and logos are referenced by path; missing artwork falls back to the built-in
   gradient and a placeholder glyph.
-- The library survives restarts; a corrupted `library.json` is renamed to `.bak` instead of
-  crashing the app.
+- The library lives in `%LocalAppData%\GameLauncher\library.json` and is compatible with
+  every previous release.

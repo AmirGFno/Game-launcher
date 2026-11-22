@@ -17,10 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8 SDK
+      - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
+
+      # Release builds are tested too - unit tests cover target validation, safe
+      # cleanup, atomic persistence, image validation and cache behaviour.
+      - name: Run tests
+        run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
 
       - name: Publish self-contained single-file executable
         run: >-
@@ -39,7 +44,7 @@ jobs:
       # This step fails the build when the resources are missing.
       - name: Verify embedded WPF resources
         run: |
-          dotnet build -c Release --nologo -v minimal
+          dotnet build GameLauncher.csproj -c Release --nologo -v minimal
           $dll = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\bin" -Filter "GFnoLauncher.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $dll) {
             Write-Host "##[error]GFnoLauncher.dll was not found under bin/."

@@ -1,11 +1,39 @@
+using System.IO;
+
 namespace GameLauncher.Models;
 
 /// <summary>
-/// Helpers that decide whether a launch target is a URI (steam://, https://, ...)
-/// or a plain file path, and validate the target entered in the editor.
+/// Decides whether a launch target is a supported URI protocol or a plain
+/// executable path, and validates the target entered in the editor.
+/// <para>
+/// Only the protocols listed in <see cref="AllowedUriSchemes"/> are ever handed to
+/// the shell. Anything else is rejected, so a library entry (or a malicious import)
+/// cannot start an arbitrary protocol handler.
+/// </para>
 /// </summary>
 public static class GameTarget
 {
+    /// <summary>
+    /// URI protocols the launcher is allowed to open. Keep this list deliberately
+    /// short: every entry is a protocol handler that can launch arbitrary software.
+    /// </summary>
+    public static readonly IReadOnlySet<string> AllowedUriSchemes = new HashSet<string>(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        // The intended protocol.
+        "steam",
+
+        // Other PC launcher protocol handlers.
+        "com.epicgames.launcher",
+        "uplay",
+        "origin",
+        "battlenet",
+        "goggalaxy"
+    };
+
+    /// <summary>
+    /// True when <paramref name="target"/> is a URI whose scheme is on the allowlist.
+    /// </summary>
     public static bool IsUri(string target)
     {
         if (string.IsNullOrWhiteSpace(target))
@@ -13,26 +41,25 @@ public static class GameTarget
             return false;
         }
 
-        if (target.Contains("://", StringComparison.Ordinal))
-        {
-            return true;
-        }
+        string trimmed = target.Trim();
 
-        // Do not treat Windows drive paths such as "C:\Games\demo.exe" as a URI.
-        if (target.Length >= 2 && char.IsLetter(target[0]) && target[1] == ':')
+        // Windows drive paths such as "C:\Games\demo.exe" are files, not URIs.
+        if (trimmed.Length >= 2 && char.IsLetter(trimmed[0]) && trimmed[1] == ':')
         {
             return false;
         }
 
-        return Uri.TryCreate(target, UriKind.Absolute, out Uri? uri)
-               && uri is not null
-               && uri.Scheme.Length > 1
-               && !string.Equals(uri.Scheme, Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase);
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri) || uri is null)
+        {
+            return false;
+        }
+
+        return AllowedUriSchemes.Contains(uri.Scheme);
     }
 
     /// <summary>
-    /// A launch target is valid when it is a URI or points to an .exe file.
-    /// (The file itself may be installed later, so existence is checked at launch time.)
+    /// True when <paramref name="target"/> is either a supported URI or a path that
+    /// ends in <c>.exe</c>. Existence is checked at launch time, not here.
     /// </summary>
     public static bool IsValid(string target)
     {
@@ -41,7 +68,36 @@ public static class GameTarget
             return false;
         }
 
-        var trimmed = target.Trim();
-        return IsUri(trimmed) || trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        string trimmed = target.Trim();
+
+        if (IsUri(trimmed))
+        {
+            return true;
+        }
+
+        if (!trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // A path must not be a URI in disguise.
+        if (trimmed.Contains("://", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Reject paths with invalid characters / illegal syntax.
+            _ = Path.GetFullPath(trimmed);
+        }
+        catch (Exception ex) when (ex is ArgumentException
+                                  or NotSupportedException
+                                  or PathTooLongException)
+        {
+            return false;
+        }
+
+        return true;
     }
 }
