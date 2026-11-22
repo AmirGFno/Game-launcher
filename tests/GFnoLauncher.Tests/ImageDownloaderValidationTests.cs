@@ -1,3 +1,4 @@
+using Xunit;
 using GameLauncher.Services;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
