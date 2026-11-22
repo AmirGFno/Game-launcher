@@ -99,7 +99,16 @@ public sealed class GameSessionHistoryService : IGameSessionHistoryService
         try
         {
             var records = Load().ToList();
-            records.Add(record);
+            // A launch and its finalized duration are the same session, not two rows.
+            int existing = records.FindIndex(r => r.GameId == record.GameId
+                && r.LaunchedAtUtc == record.LaunchedAtUtc);
+            if (existing >= 0)
+            {
+                // A late launch-only write must not erase a finalized duration.
+                if (record.Duration is not null || records[existing].Duration is null)
+                    records[existing] = record;
+            }
+            else records.Add(record);
 
             // Newest first, capped.
             records = records

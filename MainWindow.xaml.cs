@@ -36,6 +36,9 @@ public partial class MainWindow : Window
     private string _wwwRoot = string.Empty;
     private bool _interfaceReady;
     private bool _disposed;
+    private bool _closing;
+    private readonly object _historyGate = new();
+    private Task _historyWrites = Task.CompletedTask;
 
     public MainWindow()
     {
@@ -69,14 +72,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_disposed)
         {
             return;
         }
 
-        _disposed = true;
+        e.Cancel = true;
+        if (_closing) return;
+        _closing = true;
 
         try
         {
@@ -88,9 +93,14 @@ public partial class MainWindow : Window
             // Best effort during shutdown.
         }
 
+        Task pending;
+        lock (_historyGate) pending = _historyWrites;
+        await pending;
         _trayIcon?.Dispose();
         _trayIcon = null;
         WebView.Dispose();
+        _disposed = true;
+        Close();
     }
 
     // ---- WebView2 --------------------------------------------------------
@@ -375,7 +385,28 @@ public partial class MainWindow : Window
         _bridge = new BridgeServer(handlers, PostMessage, AppOrigin);
 
         monitor.SampleUpdated += (_, sample) => _bridge?.PostEvent("performance.sample", sample);
-        monitor.SessionEnded += (_, status) => _bridge?.PostEvent("performance.sessionEnded", status);
+        monitor.SessionEnded += (_, status) =>
+        {
+            _bridge?.PostEvent("performance.sessionEnded", status);
+            if (status.GameId == Guid.Empty || status.State != MonitoringState.Ended) return;
+            lock (_historyGate)
+            {
+                _historyWrites = _historyWrites.ContinueWith(async _ =>
+                {
+                    try
+                    {
+                        await history.RecordAsync(new GameSessionRecord(status.GameId,
+                            status.GameTitle, status.LaunchRequestedAtUtc, status.SessionDuration,
+                            status.Error is null, status.Error)).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("Session history could not be saved: " + ex.Message);
+                        _bridge?.PostEvent("history.error", new { message = "Session history could not be saved." });
+                    }
+                }, TaskScheduler.Default).Unwrap();
+            }
+        };
         _windowController!.StateChanged += (_, state) =>
             _bridge?.PostEvent("window.state.changed", new { state = state.ToString() });
     }

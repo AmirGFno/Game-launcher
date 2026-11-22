@@ -44,7 +44,6 @@ public sealed class ProcessMonitorService : IProcessMonitorService, IDisposable
     private MonitoringState _state = MonitoringState.NotStarted;
     private string? _error;
     private TimeSpan _interval = DefaultInterval;
-    private Stopwatch? _cpuClock;
     private TimeSpan _lastTotalProcessorTime;
     private DateTime _lastSampleUtc;
     private bool _disposed;
@@ -90,6 +89,8 @@ public sealed class ProcessMonitorService : IProcessMonitorService, IDisposable
                 throw new ObjectDisposedException(nameof(ProcessMonitorService));
             }
 
+            if (_state is MonitoringState.Running or MonitoringState.WaitingForProcess)
+                FinishSession();
             StopTimerLocked();
 
             _gameId = game.Id;

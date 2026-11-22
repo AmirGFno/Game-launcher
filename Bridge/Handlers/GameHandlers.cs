@@ -18,6 +18,8 @@ public sealed class GameLaunchHandler : IBridgeHandler
 
     public GameLaunchHandler(BridgeServices services) => _services = services;
 
+    private readonly Dictionary<Guid, DateTime> _recentRequests = new();
+
     public string Type => BridgeContract.GameLaunch;
 
     public async Task<object?> HandleAsync(BridgeRequest request, CancellationToken cancellationToken)
@@ -34,6 +36,16 @@ public sealed class GameLaunchHandler : IBridgeHandler
         {
             throw new BridgeHandlerException("That game is no longer in the library.");
         }
+
+        var session = _services.Monitor.Status;
+        if (session.GameId == game.Id && session.State is MonitoringState.Running or MonitoringState.WaitingForProcess)
+            throw new BridgeHandlerException("This game is already running or waiting for its process.");
+        if (_recentRequests.TryGetValue(game.Id, out DateTime previous)
+            && DateTime.UtcNow - previous < TimeSpan.FromSeconds(5))
+            throw new BridgeHandlerException("A launch was just requested. Please wait before trying again.");
+        _recentRequests[game.Id] = DateTime.UtcNow;
+        foreach (Guid stale in _recentRequests.Where(pair => DateTime.UtcNow - pair.Value > TimeSpan.FromMinutes(1)).Select(pair => pair.Key).ToArray())
+            _recentRequests.Remove(stale);
 
         LaunchProfile profile = game.LaunchProfile ?? new LaunchProfile();
 
