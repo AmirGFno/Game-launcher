@@ -32,7 +32,8 @@ jobs:
           dotnet restore tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -v normal *>&1 | Tee-Object -FilePath $log -Append
           dotnet build tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --no-restore --nologo -v normal *>&1 | Tee-Object -FilePath $log -Append
           Write-Host "DEBUG DONE"
-          $lines = Get-Content $log | Where-Object { $_ -match 'xunit|Test\.Sdk|error|warning|Unable|NU[0-9]{3}|not found|Assets file|Restored|PackageReference' }
+          dotnet list tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj package --include-transitive *>&1 | Tee-Object -FilePath $log -Append
+          $lines = Get-Content $log | Where-Object { $_ -notmatch 'api\.nuget\.org' -and $_ -match 'Restored|error|warning|NU[0-9]{3}|Not found|Assets file|xunit/[0-9]|Test\.Sdk/[0-9]|xunit Core|xunit Assert' }
           $n = 0
           foreach ($line in $lines) {
             $n++
