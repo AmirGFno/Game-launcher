@@ -32,14 +32,19 @@ jobs:
           dotnet restore tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -v normal *>&1 | Tee-Object -FilePath $log -Append
           dotnet build tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --no-restore --nologo -v normal *>&1 | Tee-Object -FilePath $log -Append
           Write-Host "DEBUG DONE"
-          dotnet list tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj package --include-transitive *>&1 | Tee-Object -FilePath $log -Append
-          $lines = Get-Content $log | Where-Object { $_ -notmatch 'api\.nuget\.org' -and $_ -match 'Restored|error|warning|NU[0-9]{3}|Not found|Assets file|xunit/[0-9]|Test\.Sdk/[0-9]|xunit Core|xunit Assert' }
-          $n = 0
-          foreach ($line in $lines) {
-            $n++
-            if ($n -gt 40) { break }
-            Write-Host ("::error file=debug.log,line={0}::{1}" -f $n, $line)
+          $out = New-Object System.Text.StringBuilder
+          [void]$out.AppendLine("ASSETS_EXISTS=" + (Test-Path "tests/GFnoLauncher.Tests/obj/project.assets.json"))
+          if (Test-Path "tests/GFnoLauncher.Tests/obj/project.assets.json") {
+            $a = Get-Content "tests/GFnoLauncher.Tests/obj/project.assets.json" -Raw
+            [void]$out.AppendLine("ASSETS_LEN=" + $a.Length)
+            [void]$out.AppendLine("XUNIT_KEYS=" + (([regex]::Matches($a, '"xunit[^"]*"') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ","))
           }
+          [void]$out.AppendLine("=== LIST ===")
+          [void]$out.AppendLine((dotnet list tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj package --include-transitive 2>&1 | Out-String))
+          [void]$out.AppendLine("=== TAIL ===")
+          [void]$out.AppendLine((Get-Content $log -Tail 40 | Out-String))
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($out.ToString()))
+          Write-Host "::error file=summary.log::SUM $b64"
 
       - name: Upload debug logs
         if: always()
