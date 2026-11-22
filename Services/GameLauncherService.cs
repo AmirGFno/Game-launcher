@@ -10,11 +10,14 @@ public sealed class GameLauncherService : IGameLauncherService
     {
         ArgumentNullException.ThrowIfNull(game);
 
-        string target = game.LaunchTarget.Trim();
+        string target = game.LaunchTarget?.Trim() ?? string.Empty;
         if (target.Length == 0)
         {
             throw new InvalidOperationException("This game has no launch target.");
         }
+
+        if (!GameTarget.IsValid(target))
+            throw new InvalidOperationException("Use an executable path or an allowed game-store URI.");
 
         var startInfo = new ProcessStartInfo { UseShellExecute = true };
 
@@ -31,9 +34,9 @@ public sealed class GameLauncherService : IGameLauncherService
             }
 
             startInfo.FileName = target;
-            startInfo.WorkingDirectory = Path.GetDirectoryName(target) ?? string.Empty;
+            startInfo.WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(target)) ?? string.Empty;
         }
 
-        Process.Start(startInfo);
+        using Process? process = Process.Start(startInfo);
     }
 }

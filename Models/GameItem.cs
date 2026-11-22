@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using System.Text.Json;
 using System.Windows.Media;
 using GameLauncher.Services;
 using Color = System.Windows.Media.Color;
@@ -14,6 +15,9 @@ namespace GameLauncher.Models;
 /// </summary>
 public sealed class GameItem : INotifyPropertyChanged
 {
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalData { get; set; }
+
     public Guid Id { get; set; } = Guid.NewGuid();
 
     /// <summary>Display name of the game.</summary>
@@ -124,6 +128,7 @@ public sealed class GameItem : INotifyPropertyChanged
     {
         var clone = (GameItem)MemberwiseClone();
         clone.PropertyChanged = null;
+        clone.AdditionalData = AdditionalData?.ToDictionary(pair => pair.Key, pair => pair.Value.Clone());
         return clone;
     }
 

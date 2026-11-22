@@ -70,8 +70,7 @@ public sealed class AsyncImage : System.Windows.Controls.Image
 
     private async void LoadAsync()
     {
-        // Cancel the previous request (deliberately not disposed: its token may
-        // still be observed by the worker that is running it).
+        // The old request owns and disposes its source when its await completes.
         _pending?.Cancel();
 
         var cancellation = new CancellationTokenSource();
@@ -85,7 +84,7 @@ public sealed class AsyncImage : System.Windows.Controls.Image
         {
             BitmapSource? image = await ImageLoader
                 .LoadAsync(path, maxWidth, desaturate, cancellation.Token)
-                .ConfigureAwait(false);
+                .ConfigureAwait(true);
 
             if (cancellation.IsCancellationRequested || !IsCurrent(path, maxWidth, desaturate))
             {
@@ -111,8 +110,12 @@ public sealed class AsyncImage : System.Windows.Controls.Image
         }
         catch
         {
-            // A failed load leaves the previous content in place; the UI thread is
-            // the only place where Source may be touched, so nothing is done here.
+            if (ReferenceEquals(_pending, cancellation)) Source = null;
+        }
+        finally
+        {
+            if (ReferenceEquals(_pending, cancellation)) _pending = null;
+            cancellation.Dispose();
         }
     }
 
