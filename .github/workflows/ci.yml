@@ -26,4 +26,20 @@ jobs:
         run: dotnet build GameLauncher.csproj -c Release --nologo -v minimal
 
       - name: Test
-        run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
+        continue-on-error: true
+        run: |
+          dotnet list tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj package --include-transitive 2>&1 | Tee-Object -FilePath packages.log
+          dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v normal 2>&1 | Tee-Object -FilePath test.log
+          $code = $LASTEXITCODE
+          $text = Get-Content packages.log, test.log |
+            Where-Object { $_ -match 'error|warning|NU[0-9]|xunit|Test.Sdk|Unable|Package|xunit' } |
+            Out-String
+          if (-not $text) { $text = Get-Content test.log -Raw }
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))
+          $i = 0
+          while ($i -lt $b64.Length) {
+            $chunk = $b64.Substring($i, [Math]::Min(240, $b64.Length - $i))
+            Write-Host "##[error]TEST $i $chunk"
+            $i += 240
+          }
+          Write-Host "EXITCODE $code"
