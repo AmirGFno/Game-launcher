@@ -131,9 +131,9 @@ jobs:
       - name: Upload Windows preview packages
         uses: actions/upload-artifact@v7
         with:
-          name: GFnoLauncher-2.1.0-preview
+          name: GFnoLauncher-2.1.1-preview
           path: |
-            GFnoLauncher-2.1.0-win-x64-portable.zip
-            GFnoLauncher-Setup-2.1.0.exe
+            GFnoLauncher-2.1.1-win-x64-portable.zip
+            GFnoLauncher-Setup-2.1.1.exe
           if-no-files-found: error
           retention-days: 14

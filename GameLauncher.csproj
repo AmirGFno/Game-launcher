@@ -16,10 +16,10 @@
     <Product>GFno Launcher</Product>
     <Title>GFno Launcher</Title>
     <Description>A cinematic Windows game launcher with a React dashboard and a Performance Center.</Description>
-    <Version>2.1.0</Version>
+    <Version>2.1.1</Version>
     <!-- Keep the assembly/manifest version in sync (app.manifest). -->
-    <AssemblyVersion>2.1.0.0</AssemblyVersion>
-    <FileVersion>2.1.0.0</FileVersion>
+    <AssemblyVersion>2.1.1.0</AssemblyVersion>
+    <FileVersion>2.1.1.0</FileVersion>
     <Copyright>GFno</Copyright>
     <Company>GFno</Company>
   </PropertyGroup>

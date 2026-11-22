@@ -255,23 +255,27 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          name: "GFno Launcher 2.1.0 — Preview"
+          name: "GFno Launcher 2.1.1"
           draft: false
-          prerelease: true
-          make_latest: false
+          prerelease: false
+          make_latest: true
           fail_on_unmatched_files: true
           files: |
-            GFnoLauncher-2.1.0-win-x64-portable.zip
-            GFnoLauncher-Setup-2.1.0.exe
+            GFnoLauncher-2.1.1-win-x64-portable.zip
+            GFnoLauncher-Setup-2.1.1.exe
             SHA256SUMS.txt
           body: |
-            ## GFno Launcher 2.1.0 — UI preview
+            ## GFno Launcher 2.1.1
 
             - React/TypeScript interface in a thin WebView2/WPF host on .NET 10.
             - Minimalist full-screen artwork with a small title above the carousel.
             - Selected game anchored exactly two slots from the left; the track slides with eased transforms.
             - Top-right Performance modal beside Add; no separate Library navigation.
             - Frosted bottom hints, edit/delete controls and persistent reorder mode.
+            - Navy, turquoise and lavender theme, respecting saved accent preferences.
+            - Session-history finalization, repeat-launch guards and queued history saves at shutdown.
+            - Per-user activation signal to restore a launcher hidden in the tray.
+            - Artwork downloads and executable metadata controls in the game editor.
             - Explicit System.Threading.Timer and Windows memory/image compilation fixes.
 
             ## Verification and limitations
@@ -279,9 +283,10 @@ jobs:
             Windows CI passed frontend build/tests, backend build/tests, self-contained publication,
             packaged frontend checks and Inno Setup compilation. Interactive Windows acceptance
             testing (launching actual games, tray restore, runtime rendering) has not been performed.
-            This is a prerelease, not a claim that all original 2.1.0 requirements are complete.
-            Session finalization, single-instance tray restore, artwork-download UI and additional
-            acceptance testing remain pending. See docs/2.1.0-preview-status.md.
+            Published as stable at the project owner's request. This does not mean all originally
+            planned features or hands-on tests are complete. Safe startup preparation UI,
+            external-game duplicate detection and further accessibility/interaction testing remain
+            pending. See docs/2.1.0-preview-status.md for the detailed implementation status.
 
             ## Installation
 

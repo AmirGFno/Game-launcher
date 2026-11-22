@@ -439,11 +439,11 @@ public partial class MainWindow : Window
         try
         {
             Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
-            return version is null ? "2.1.0" : version.ToString(3);
+            return version is null ? "2.1.1" : version.ToString(3);
         }
         catch
         {
-            return "2.1.0";
+            return "2.1.1";
         }
     }
 
