@@ -52,4 +52,17 @@
     <InternalsVisibleTo Include="GFnoLauncher.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- This project file sits at the repository root, so the SDK's default
+         **/*.cs glob also matches tests/GFnoLauncher.Tests/*.cs. The app project
+         would then compile the unit-test sources and fail with CS0246 on
+         "using Xunit;" (observed in CI: the Build step went red and the Test
+         step was skipped). Keep the test project independent from the app. -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <Resource Remove="tests\**" />
+    <Page Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+  </ItemGroup>
+
 </Project>
