@@ -49,6 +49,12 @@ public static class PathSafety
     /// <summary>
     /// True when the path itself is a junction, mount point or symbolic link.
     /// Callers that recurse must also check every ancestor.
+    /// <para>
+    /// A path that does not exist cannot be a link, so it is reported as safe.
+    /// This matters for <see cref="EnsureSafeRoot"/>: the cache directory is
+    /// allowed not to exist yet (the cleaner creates it), and rejecting a
+    /// missing directory here would make the default cache unusable on first run.
+    /// </para>
     /// </summary>
     public static bool IsReparsePoint(string path)
     {
@@ -56,9 +62,17 @@ public static class PathSafety
         {
             return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
         }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return false;
+        }
         catch
         {
-            // Missing / inaccessible paths are treated as unsafe.
+            // Inaccessible paths are treated as unsafe.
             return true;
         }
     }
