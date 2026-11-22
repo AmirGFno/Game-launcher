@@ -1,3 +1,5 @@
+using Image = SixLabors.ImageSharp.Image;
+using Size = SixLabors.ImageSharp.Size;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;

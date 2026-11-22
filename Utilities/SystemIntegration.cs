@@ -80,12 +80,12 @@ public static class SystemIntegration
     /// </summary>
     public static MemoryStatus GetMemoryStatus()
     {
-        var status = new MemoryStatus
+        var status = new MemoryStatusEx
         {
             Length = (uint)Marshal.SizeOf<MemoryStatusEx>()
         };
 
-        if (NativeMethods.GlobalMemoryStatusEx(ref status) == 0)
+        if (!NativeMethods.GlobalMemoryStatusEx(ref status))
         {
             return new MemoryStatus(0, 0, 0);
         }
