@@ -259,7 +259,7 @@ jobs:
             - **Crash-safe library persistence.** `library.json` is written to a temporary file, flushed and swapped in atomically, keeping a `.bak` copy of the previous file. Writers are serialised so concurrent saves cannot interleave, and a corrupted file is moved aside (never deleted) so the library stays recoverable.
             - **Validated downloads.** Image downloads are capped at 25 MB, streamed to a temporary file, checked as real decodable images with sane dimensions, and incomplete files are removed.
             - **Restricted launch targets.** Only an explicit allowlist of store protocols (Steam, Epic, Ubisoft, Origin, Battle.net, GOG Galaxy) plus `.exe` paths. Arbitrary URI schemes are rejected.
-            - **Dependency update.** `SixLabors.ImageSharp` is updated to 3.2.0, the first 3.x release that patches every published ImageSharp advisory (TIFF fax/CCITT encoder and decoder out-of-bounds writes, `HistogramEqualization` index validation, ICC CLUT allocation, BigTIFF decoder loop). 3.1.12 is vulnerable to all of them.
+            - **Dependency status.** `SixLabors.ImageSharp` stays at 3.1.12 deliberately. 3.2.0 is the first 3.x release that patches the published ImageSharp advisories (TIFF fax/CCITT encoder and decoder out-of-bounds writes, `HistogramEqualization` index validation, ICC CLUT allocation, BigTIFF decoder loop), but it also adds build-time license enforcement that requires a paid Six Labors license key, which this free project cannot satisfy. Moving to 3.2.0 is therefore deferred until a license is available; the code compiles and runs against the 3.x API either way.
 
             ## Performance and stability
 
