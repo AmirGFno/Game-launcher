@@ -1,4 +1,5 @@
 using Xunit;
+using System.IO;
 using GameLauncher.Services;
 
 namespace GFnoLauncher.Tests;

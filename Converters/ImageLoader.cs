@@ -4,6 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+// Mutate/Resize are extension methods in SixLabors.ImageSharp.Processing, not
+// instance members of Image - without this using the ImageSharp decode path
+// fails with CS1061 ("'Image' does not contain a definition for 'Mutate'").
+using SixLabors.ImageSharp.Processing;
 
 namespace GameLauncher.Converters;
 
