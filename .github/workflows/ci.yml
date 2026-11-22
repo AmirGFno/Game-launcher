@@ -51,3 +51,89 @@ jobs:
 
       - name: Test
         run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
+
+      - name: Publish Windows preview
+        run: |
+          dotnet publish GameLauncher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "publish/wwwroot/index.html")) { throw "Missing frontend index.html" }
+          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.js")) { throw "Missing frontend JavaScript" }
+          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.css")) { throw "Missing frontend CSS" }
+          $version = (Select-Xml -Path GameLauncher.csproj -XPath "//Version").Node.InnerText
+          Set-Content release-version.txt $version -NoNewline
+          Compress-Archive -Path publish/* -DestinationPath "GFnoLauncher-$version-win-x64-portable.zip"
+
+      - name: Install Inno Setup
+        run: |
+          curl.exe -L --fail --silent --show-error `
+            -o "$env:TEMP\innosetup.exe" `
+            "https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup.exe" `
+            -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/RESTARTAPPLICATIONS" `
+            -Wait
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe was not found after installing Inno Setup." }
+          Write-Host "Using Inno Setup compiler: $iscc"
+
+      - name: Compile installer
+        run: |
+          # Resolve the compiler here as well - relying on GITHUB_ENV for the path
+          # proved unreliable.
+          $candidates = @(
+            "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            Write-Host "##[error]ISCC.exe was not found on this runner."
+            exit 1
+          }
+          Write-Host "Compiling installer with: $iscc"
+
+          $out = & $iscc "$env:GITHUB_WORKSPACE\setup.iss" 2>&1
+          $code = $LASTEXITCODE
+          $text = $out | Out-String
+          [System.IO.File]::WriteAllText("$env:GITHUB_WORKSPACE\iscc.log", $text)
+
+          if ($code -ne 0) {
+            # Surface the compiler output through annotations (chunked + base64) so
+            # the failure reason is readable from the run summary.
+            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))
+            Write-Host "##[error]Inno Setup failed with exit code $code"
+            $i = 0
+            while ($i -lt $b64.Length) {
+              $chunk = $b64.Substring($i, [Math]::Min(240, $b64.Length - $i))
+              Write-Host "##[error]LOG $i $chunk"
+              $i += 240
+            }
+            exit 1
+          }
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\GFnoLauncher-Setup.exe")) {
+            Write-Host "##[error]GFnoLauncher-Setup.exe was not produced."
+            exit 1
+          }
+
+          # Publish the installer under a versioned file name.
+          $version = Get-Content "$env:GITHUB_WORKSPACE\release-version.txt"
+          Copy-Item "$env:GITHUB_WORKSPACE\GFnoLauncher-Setup.exe" "$env:GITHUB_WORKSPACE\GFnoLauncher-Setup-$version.exe"
+          $size = [math]::Round((Get-Item "$env:GITHUB_WORKSPACE\GFnoLauncher-Setup-$version.exe").Length / 1MB, 1)
+          Write-Host "Installer produced: GFnoLauncher-Setup-$version.exe ($size MB)"
+
+
+      - name: Upload Windows preview packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: GFnoLauncher-2.1.0-preview
+          path: |
+            GFnoLauncher-2.1.0-win-x64-portable.zip
+            GFnoLauncher-Setup-2.1.0.exe
+          if-no-files-found: error
+          retention-days: 14

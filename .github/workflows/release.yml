@@ -17,6 +17,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend install, test and build
+        working-directory: frontend
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          exit $LASTEXITCODE
+
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v6
         with:
@@ -34,6 +51,7 @@ jobs:
           -r win-x64
           --self-contained true
           -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
           -o "${{ github.workspace }}/publish"
 
       # ---- Version -------------------------------------------------------
@@ -118,6 +136,12 @@ jobs:
           }
           $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
           Write-Host "OK portable executable: GFnoLauncher.exe ($size MB)"
+
+      - name: Verify packaged frontend
+        run: |
+          if (-not (Test-Path "publish/wwwroot/index.html")) { throw "Packaged React index.html is missing." }
+          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.js")) { throw "Packaged React JavaScript is missing." }
+          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.css")) { throw "Packaged React CSS is missing." }
 
       - name: Create ZIP archive (portable)
         run: |
