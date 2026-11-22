@@ -481,8 +481,9 @@ public partial class MainWindow : Window
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
     }
 
-    private void ShowFromTray()
+    internal void ShowFromTray()
     {
+        if (_closing || _disposed) return;
         Show();
         WindowState = WindowState.Normal;
         Activate();

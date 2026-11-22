@@ -13,15 +13,19 @@ public partial class App : System.Windows.Application
 {
     // A named mutex is the reliable way to detect a second launcher: it survives
     // across processes and is released automatically when the owner exits.
-    private const string SingleInstanceMutexName = @"Global\GFnoLauncher.SingleInstance";
-    private const int SW_RESTORE = 9;
+    private static readonly string InstanceKey = @"Local\GFnoLauncher." +
+        System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value;
+    private static readonly string SingleInstanceMutexName = InstanceKey + ".Mutex";
 
     private Mutex? _singleInstanceMutex;
+    private EventWaitHandle? _activationEvent;
+    private RegisteredWaitHandle? _activationWait;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
+        _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, InstanceKey + ".Activate");
         bool createdNew = false;
         try
         {
@@ -37,7 +41,7 @@ public partial class App : System.Windows.Application
         {
             // Another instance is already running - bring its window forward instead
             // of starting a second copy of the launcher.
-            ActivateExistingInstance();
+            _activationEvent.Set();
             Shutdown();
             return;
         }
@@ -50,6 +54,13 @@ public partial class App : System.Windows.Application
 
         MainWindow = new MainWindow();
         MainWindow.Show();
+        _activationWait = ThreadPool.RegisterWaitForSingleObject(_activationEvent, (_, _) =>
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (MainWindow is GameLauncher.MainWindow launcher) launcher.ShowFromTray();
+            }));
+        }, null, Timeout.Infinite, executeOnlyOnce: false);
 
         ApplyStoredStartupPreference();
     }
@@ -58,6 +69,8 @@ public partial class App : System.Windows.Application
     {
         // Release the single-instance mutex only after the process is gone, so the
         // name stays owned for the whole lifetime of the app.
+        _activationWait?.Unregister(null);
+        _activationEvent?.Dispose();
         _singleInstanceMutex?.Dispose();
         _singleInstanceMutex = null;
 
@@ -93,33 +106,6 @@ public partial class App : System.Windows.Application
             return System.Windows.Forms.Application.ExecutablePath;
         }
     }
-
-    /// <summary>
-    /// Finds the window of the already-running instance and brings it to the
-    /// foreground, mirroring the usual "single instance" behaviour.
-    /// </summary>
-    private static void ActivateExistingInstance()
-    {
-        Process current = Process.GetCurrentProcess();
-
-        Process? other = Process.GetProcessesByName(current.ProcessName)
-                               .FirstOrDefault(candidate => candidate.Id != current.Id && candidate.MainWindowHandle != IntPtr.Zero);
-
-        if (other is null)
-        {
-            return;
-        }
-
-        IntPtr handle = other.MainWindowHandle;
-        ShowWindowAsync(handle, SW_RESTORE);
-        SetForegroundWindow(handle);
-    }
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
