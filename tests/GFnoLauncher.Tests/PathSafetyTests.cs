@@ -1,3 +1,4 @@
+using Xunit;
 using GameLauncher.Services;
 
 namespace GFnoLauncher.Tests;
