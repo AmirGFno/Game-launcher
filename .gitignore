@@ -9,7 +9,10 @@ obj/
 artifacts/
 publish/
 *.zip
-/GameLauncherSetup.exe
+/GFnoLauncher-Setup*.exe
+/SHA256SUMS.txt
+/release-version.txt
+/iscc.log
 
 # Build results
 [Dd]ebug/
