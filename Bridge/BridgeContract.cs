@@ -23,6 +23,7 @@ public static class BridgeContract
     public const string LibraryGet = "library.get";
     public const string LibraryCreate = "library.create";
     public const string LibraryUpdate = "library.update";
+    public const string LibraryReorder = "library.reorder";
     public const string LibraryDelete = "library.delete";
 
     // ---- Game actions -----------------------------------------------------
@@ -68,7 +69,7 @@ public static class BridgeContract
     public static readonly IReadOnlySet<string> RequestTypes = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        LibraryGet, LibraryCreate, LibraryUpdate, LibraryDelete,
+        LibraryGet, LibraryCreate, LibraryUpdate, LibraryDelete, LibraryReorder,
         GameLaunch, GameOpenFolder, GameDetect,
         DialogOpenFile, DialogOpenFolder,
         ImageDownload, ImageThumbnail, ImageDominantColor,

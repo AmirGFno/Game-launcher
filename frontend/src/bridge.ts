@@ -9,6 +9,7 @@ export type PerformanceStatus = {
 };
 type Contracts = {
  'settings.get': {settings: Preferences}; 'settings.save': {settings: Preferences}; 'performance.status': PerformanceStatus;
+ 'library.reorder': { games: Game[] };
  'library.get': { games: Game[] }; 'library.create': { games: Game[] }; 'library.update': { games: Game[] }; 'library.delete': { games: Game[] };
  'game.launch': unknown; 'game.openFolder': unknown; 'dialog.openFile': { path: string | null }; 'image.thumbnail': { url: string | null };
  'window.minimize': unknown; 'window.maximize': unknown; 'window.close': unknown;

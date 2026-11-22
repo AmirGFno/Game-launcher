@@ -26,7 +26,7 @@ public sealed class ProcessMonitorService : IProcessMonitorService, IDisposable
     public static readonly TimeSpan MinimumInterval = TimeSpan.FromMilliseconds(500);
 
     private readonly object _gate = new();
-    private readonly Timer _timer;
+    private readonly System.Threading.Timer _timer;
 
     private Process? _process;
 
@@ -52,7 +52,7 @@ public sealed class ProcessMonitorService : IProcessMonitorService, IDisposable
     public ProcessMonitorService()
     {
         // Created once, but only runs while a game is monitored.
-        _timer = new Timer(OnTick, null, Timeout.Infinite, Timeout.Infinite);
+        _timer = new System.Threading.Timer(OnTick, null, Timeout.Infinite, Timeout.Infinite);
     }
 
     public bool IsMonitoring

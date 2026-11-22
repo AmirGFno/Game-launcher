@@ -346,6 +346,7 @@ public partial class MainWindow : Window
             new LibraryCreateHandler(_services),
             new LibraryUpdateHandler(_services),
             new LibraryDeleteHandler(_services),
+            new LibraryReorderHandler(_services),
             new GameDetectHandler(_services),
             new GameLaunchHandler(_services),
             new GameOpenFolderHandler(_services),

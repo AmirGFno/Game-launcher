@@ -1,3 +1,4 @@
+using System.IO;
 using GameLauncher.Models;
 using GameLauncher.Services;
 
@@ -171,5 +172,28 @@ public sealed class GameDetectHandler : IBridgeHandler
         string? logoPath = GameInfoExtractor.ExtractLogo(path);
 
         return Task.FromResult<object?>(new { title, logoPath });
+    }
+}
+
+/// <summary>Moves one game a single position without replacing any metadata.</summary>
+public sealed class LibraryReorderHandler(BridgeServices services) : IBridgeHandler
+{
+    public string Type => BridgeContract.LibraryReorder;
+    public async Task<object?> HandleAsync(BridgeRequest request, CancellationToken cancellationToken)
+    {
+        Guid? id = request.Payload.GetGuid("id");
+        int direction = request.Payload.GetInt32("direction", 0);
+        if (id is null || (direction != -1 && direction != 1))
+            throw new BridgeHandlerException("Select a game and a valid reorder direction.");
+        var games = (await services.Library.LoadAsync().ConfigureAwait(false)).ToList();
+        int index = games.FindIndex(game => game.Id == id);
+        if (index < 0) throw new BridgeHandlerException("That game is no longer available.");
+        int target = index + direction;
+        if (target >= 0 && target < games.Count)
+        {
+            (games[index], games[target]) = (games[target], games[index]);
+            await services.Library.SaveAsync(games).ConfigureAwait(false);
+        }
+        return new { games };
     }
 }
