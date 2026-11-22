@@ -35,8 +35,3 @@ nuget.g.targets
 # OS
 .DS_Store
 Thumbs.db
-
-# Frontend generated files
-node_modules/
-frontend/dist/
-frontend/coverage/

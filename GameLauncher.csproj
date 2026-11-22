@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>
-    <!-- FolderBrowserDialog (System.Windows.Forms) is used by NativeDialogService. -->
+    <!-- FolderBrowserDialog (System.Windows.Forms) is used to pick the optional game cache folder. -->
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>GameLauncher</RootNamespace>
     <AssemblyName>GFnoLauncher</AssemblyName>
@@ -15,37 +15,26 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Product>GFno Launcher</Product>
     <Title>GFno Launcher</Title>
-    <Description>A cinematic Windows game launcher with a React dashboard and a Performance Center.</Description>
-    <Version>2.1.1</Version>
+    <Description>A minimalist, PlayStation-5-style Windows game launcher.</Description>
+    <Version>2.0.1</Version>
     <!-- Keep the assembly/manifest version in sync (app.manifest). -->
-    <AssemblyVersion>2.1.1.0</AssemblyVersion>
-    <FileVersion>2.1.1.0</FileVersion>
+    <AssemblyVersion>2.0.1.0</AssemblyVersion>
+    <FileVersion>2.0.1.0</FileVersion>
     <Copyright>GFno</Copyright>
     <Company>GFno</Company>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Thin native host: the window, WebView2, tray icon and bridge live in this
-         project. The user interface itself is the React frontend in frontend/, served
-         through a WebView2 virtual host. -->
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <!-- Used to read the icon embedded in a game executable (System.Drawing.Icon). -->
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
-    <!-- Pure-managed image library: WebP decoding, dominant-colour sampling and
-         thumbnail generation. Deliberately pinned to 3.1.12: 3.2.0 is the first
-         release that patches the published ImageSharp advisories, but it also
-         introduces build-time license enforcement (build/SixLabors.ImageSharp.targets
-         -> SixLabors_ValidateLicense, "No Six Labors license found ... please obtain
-         a license from sixlabors.com/pricing/"), which this free project cannot
-         satisfy. Upgrading requires a commercial Six Labors license.
-         Known advisories affecting 3.1.12 (all first patched in 3.2.0):
-           GHSA-wmxv-xphr-5c9g (medium)  BigTIFF IFD count loop
-           GHSA-v76p-62qx-wwq2 (high)    TIFF tiled fax OOB write (CVE-2026-106118)
-           GHSA-jjfr-hcj7-qf5w (high)    TIFF CCITT T6 encoder
-           GHSA-j9gm-c75j-xc9q (high)    TIFF T4 encoder
-           GHSA-j3p4-wp97-rph4 (high)    HistogramEqualization index validation
-           GHSA-gwg2-r3hj-4w44 (medium)  ICC CLUT allocation
-         The launcher only decodes artwork the user points it at, so exposure is
-         limited to untrusted image files - the same exposure any image viewer has. -->
+    <!-- Pure-managed image library: adds WebP decoding (and a fallback for any
+         format WPF cannot read) on top of WPF's built-in PNG/JPEG/BMP/GIF/ICO.
+         Deliberately pinned to 3.1.12: 3.2.0 is the first release that patches the
+         published ImageSharp advisories, but it also introduces build-time license
+         enforcement (build/SixLabors.ImageSharp.targets -> SixLabors_ValidateLicense,
+         "No Six Labors license found ... please obtain a license from
+         sixlabors.com/pricing/"), which this free project cannot satisfy. Upgrading
+         requires a commercial Six Labors license; until then 3.1.12 stays. -->
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
@@ -53,15 +42,19 @@
     <!-- MainWindow.xaml references these with relative URIs ("Assets/icon.png").
          WPF resolves those against the XAML file's pack URI, i.e.
          pack://application:,,,/Assets/icon.png - so the files MUST be embedded as
-         WPF resources. The .ico stays a plain file on disk too, because Inno Setup
-         and the ApplicationIcon compiler step read it from the project directory. -->
+         WPF resources. Left as None/Content (loose files next to the exe) the lookup
+         fails at startup with:
+           TypeConverterMarkupExtension ... InnerException: IOException:
+           Cannot locate resource 'assets/icon.png'.
+         The .ico stays a plain file on disk too, because Inno Setup and the
+         ApplicationIcon compiler step read it from the project directory. -->
     <None Remove="Assets\icon.png;Assets\icon.ico" />
     <Resource Include="Assets\icon.png" />
     <Resource Include="Assets\icon.ico" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Lets the unit tests call internal helpers. -->
+    <!-- Lets the unit tests call the internal image-validation helper. -->
     <InternalsVisibleTo Include="GFnoLauncher.Tests" />
   </ItemGroup>
 
@@ -69,21 +62,13 @@
     <!-- This project file sits at the repository root, so the SDK's default
          **/*.cs glob also matches tests/GFnoLauncher.Tests/*.cs. The app project
          would then compile the unit-test sources and fail with CS0246 on
-         "using Xunit;". Keep the test project independent from the app. -->
-    <Compile Remove="tests\**;frontend\**" />
+         "using Xunit;" (observed in CI: the Build step went red and the Test
+         step was skipped). Keep the test project independent from the app. -->
+    <Compile Remove="tests\**" />
     <None Remove="tests\**" />
     <Resource Remove="tests\**" />
     <Page Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- The React build output is copied into wwwroot by the CI/release pipeline.
-         It must never be compiled or bundled by the .NET build. -->
-    <None Remove="wwwroot\**" />
-    <Content Remove="wwwroot\**" />
-    <Content Include="frontend\dist\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
-    <Content Include="Assets\icon.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

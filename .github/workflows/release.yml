@@ -17,23 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Frontend install, test and build
-        working-directory: frontend
-        run: |
-          npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run build
-          exit $LASTEXITCODE
-
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v6
         with:
@@ -51,7 +34,6 @@ jobs:
           -r win-x64
           --self-contained true
           -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
           -o "${{ github.workspace }}/publish"
 
       # ---- Version -------------------------------------------------------
@@ -136,12 +118,6 @@ jobs:
           }
           $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
           Write-Host "OK portable executable: GFnoLauncher.exe ($size MB)"
-
-      - name: Verify packaged frontend
-        run: |
-          if (-not (Test-Path "publish/wwwroot/index.html")) { throw "Packaged React index.html is missing." }
-          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.js")) { throw "Packaged React JavaScript is missing." }
-          if (-not (Get-ChildItem "publish/wwwroot/assets" -Filter "*.css")) { throw "Packaged React CSS is missing." }
 
       - name: Create ZIP archive (portable)
         run: |
@@ -255,47 +231,38 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          name: "GFno Launcher 2.1.1"
+          name: "GFno Launcher 2.0.1"
           draft: false
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
           files: |
-            GFnoLauncher-2.1.1-win-x64-portable.zip
-            GFnoLauncher-Setup-2.1.1.exe
+            GFnoLauncher-2.0.1-win-x64-portable.zip
+            GFnoLauncher-Setup-2.0.1.exe
             SHA256SUMS.txt
           body: |
-            ## GFno Launcher 2.1.1
+            ## GFno Launcher 2.0.1 — WPF restoration
 
-            - React/TypeScript interface in a thin WebView2/WPF host on .NET 10.
-            - Minimalist full-screen artwork with a small title above the carousel.
-            - Selected game anchored exactly two slots from the left; the track slides with eased transforms.
-            - Top-right Performance modal beside Add; no separate Library navigation.
-            - Frosted bottom hints, edit/delete controls and persistent reorder mode.
-            - Navy, turquoise and lavender theme, respecting saved accent preferences.
-            - Session-history finalization, repeat-launch guards and queued history saves at shutdown.
-            - Per-user activation signal to restore a launcher hidden in the tray.
-            - Artwork downloads and executable metadata controls in the game editor.
-            - Explicit System.Threading.Timer and Windows memory/image compilation fixes.
+            Restores the exact v2.0.0 WPF visual interface and architecture. No React,
+            WebView2, Node.js, web assets, or new UI layouts are included.
 
-            ## Verification and limitations
+            ## Focused fixes
 
-            Windows CI passed frontend build/tests, backend build/tests, self-contained publication,
-            packaged frontend checks and Inno Setup compilation. Interactive Windows acceptance
-            testing (launching actual games, tray restore, runtime rendering) has not been performed.
-            Published as stable at the project owner's request. This does not mean all originally
-            planned features or hands-on tests are complete. Safe startup preparation UI,
-            external-game duplicate detection and further accessibility/interaction testing remain
-            pending. See docs/2.1.0-preview-status.md for the detailed implementation status.
+            - Restore a hidden tray window when starting a second launcher instance.
+            - Keep WPF image property access on the UI thread after asynchronous decoding;
+              dispose completed image-load cancellation sources and clear failed artwork.
+            - Validate launch targets before invoking the Windows shell, resolve executable
+              working directories consistently, and dispose temporary process handles.
+            - Preserve unknown JSON metadata from newer libraries when saving/editing in WPF.
 
-            ## Installation
+            v2.0.0 already contained async image decoding, bounded image caching, atomic saves,
+            LastPlayed-preserving edits, safe cache cleanup and standard-user execution.
+            These remain intact. Fixes specific to removed WebView2/performance components
+            were deliberately not imported. Existing release tags are unchanged.
 
-            Download the portable ZIP or installer and keep all included files, including wwwroot.
-            Windows 10/11 x64 and Microsoft Edge WebView2 Runtime are required.
-            No Node.js, development server, separate .NET installation or administrator rights required.
-            SHA256SUMS.txt contains package checksums. Existing v2.0.0 release assets are unchanged.
+            ## Downloads and verification
 
-            ## Known dependency risk
-
-            ImageSharp remains pinned to 3.1.12 with known advisories; no new commercial licensing
-            requirement was introduced. Avoid untrusted artwork files.
+            Windows x64 installer and self-contained portable ZIP are attached, alongside SHA256SUMS.txt.
+            No separate .NET runtime or WebView2 Runtime is required. Automated backend tests,
+            publication and packaging run in Windows CI. Hands-on Windows UI testing was not performed.
+            ImageSharp remains pinned to 3.1.12 with known advisories; avoid untrusted artwork.
