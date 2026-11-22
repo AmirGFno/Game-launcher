@@ -3,6 +3,7 @@ import { desktop, request, type PerformanceStatus, type Preferences } from './br
 const memory = (bytes: number) => `${(bytes / 1073741824).toFixed(2)} GB`;
 export function applyPreferences(value: Preferences) {
  document.documentElement.style.setProperty('--accent', value.accentColor);
+ document.documentElement.style.setProperty('--secondary-accent', typeof value.secondaryAccent === 'string' && /^#[0-9a-f]{6}$/i.test(value.secondaryAccent) ? value.secondaryAccent : '#C4B5FD');
  document.documentElement.dataset.theme = value.theme;
  document.documentElement.dataset.motion = value.animationIntensity;
  document.documentElement.dataset.backgrounds = String(value.animatedBackgrounds);

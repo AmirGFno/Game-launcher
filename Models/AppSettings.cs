@@ -62,10 +62,10 @@ public sealed class AppSettings
     public string Theme { get; set; } = ThemeMidnight;
 
     /// <summary>Accent colour as <c>#RRGGBB</c>.</summary>
-    public string AccentColor { get; set; } = "#00D1B2";
+    public string AccentColor { get; set; } = "#45E0CD";
 
     /// <summary>Secondary accent as <c>#RRGGBB</c>, used for gradients and glows.</summary>
-    public string SecondaryAccent { get; set; } = "#E8A24C";
+    public string SecondaryAccent { get; set; } = "#C4B5FD";
 
     /// <summary>Whether cinematic background crossfades are enabled.</summary>
     public bool AnimatedBackgrounds { get; set; } = true;
@@ -103,8 +103,8 @@ public sealed class AppSettings
         return new AppSettings
         {
             Theme = Themes.Contains(Theme, StringComparer.Ordinal) ? Theme : ThemeMidnight,
-            AccentColor = IsValidHex(AccentColor) ? AccentColor : "#00D1B2",
-            SecondaryAccent = IsValidHex(SecondaryAccent) ? SecondaryAccent : "#E8A24C",
+            AccentColor = IsValidHex(AccentColor) ? AccentColor : "#45E0CD",
+            SecondaryAccent = IsValidHex(SecondaryAccent) ? SecondaryAccent : "#C4B5FD",
             AnimatedBackgrounds = AnimatedBackgrounds,
             AnimationIntensity = AnimationIntensities.Contains(AnimationIntensity, StringComparer.Ordinal)
                 ? AnimationIntensity
