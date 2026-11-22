@@ -10,7 +10,111 @@ using ColorConverter = System.Windows.Media.ColorConverter;
 namespace GameLauncher.Models;
 
 /// <summary>
+/// How a game is started. This is the per-game launch profile the editor exposes
+/// under "Performance"; <see cref="GameItem.LaunchTarget"/> stays the single source
+/// of truth for *what* is launched (an <c>.exe</c> path or an allowlisted URI).
+/// <para>
+/// Every property has a safe default, so a <c>library.json</c> written by v2.0.0
+/// (which has no launch profile at all) deserialises into a working profile and no
+/// migration is needed.
+/// </para>
+/// </summary>
+public sealed class LaunchProfile
+{
+    /// <summary>Default and recommended priority.</summary>
+    public const string Normal = "Normal";
+
+    /// <summary>Safe, higher-than-normal priority.</summary>
+    public const string AboveNormal = "AboveNormal";
+
+    /// <summary>High priority. Still safe: Realtime is never offered.</summary>
+    public const string High = "High";
+
+    /// <summary>Below-normal priority.</summary>
+    public const string BelowNormal = "BelowNormal";
+
+    /// <summary>Idle priority.</summary>
+    public const string Idle = "Idle";
+
+    /// <summary>
+    /// The complete list of priorities the UI may offer. <c>Realtime</c> is
+    /// deliberately absent: it can starve essential Windows components, so a game
+    /// launcher must never set it.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SupportedPriorities = new[]
+    {
+        Normal, AboveNormal, High, BelowNormal, Idle
+    };
+
+    /// <summary>
+    /// True when <paramref name="priority"/> is one of <see cref="SupportedPriorities"/>.
+    /// Anything else (including <c>Realtime</c>) is rejected.
+    /// </summary>
+    public static bool IsSupportedPriority(string? priority)
+        => !string.IsNullOrWhiteSpace(priority)
+           && SupportedPriorities.Contains(priority!, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Normalised priority, falling back to <see cref="Normal"/>.</summary>
+    public static string NormalizePriority(string? priority)
+        => IsSupportedPriority(priority) ? priority! : Normal;
+
+    /// <summary>Directory the game process starts in. Empty = the executable's folder.</summary>
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>Optional command-line arguments passed to the executable.</summary>
+    public string CommandLineArguments { get; set; } = string.Empty;
+
+    /// <summary>Process priority. Always one of <see cref="SupportedPriorities"/>.</summary>
+    public string ProcessPriority { get; set; } = Normal;
+
+    /// <summary>
+    /// Optional image name of the real game process (for example <c>game.exe</c>) for
+    /// URI-launched titles, where <c>Process.Start</c> only confirms that Steam received
+    /// the request and no game process handle exists.
+    /// </summary>
+    public string? ProcessNameForMonitoring { get; set; }
+
+    /// <summary>
+    /// Applications the user explicitly configured to close gracefully before launching.
+    /// Empty by default, and the whole feature stays off unless
+    /// <see cref="SafeStartupPreparationEnabled"/> is set.
+    /// </summary>
+    public List<string> PreLaunchApplications { get; set; } = new();
+
+    /// <summary>Per-game switch for Performance Center monitoring.</summary>
+    public bool MonitoringEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Opt-in safe startup preparation (validate target, check it is not already
+    /// running, gracefully close the configured applications). Disabled by default.
+    /// </summary>
+    public bool SafeStartupPreparationEnabled { get; set; }
+
+    /// <summary>Deep copy, so editing a game can never mutate the stored profile.</summary>
+    public LaunchProfile Clone()
+    {
+        return new LaunchProfile
+        {
+            WorkingDirectory = WorkingDirectory,
+            CommandLineArguments = CommandLineArguments,
+            ProcessPriority = ProcessPriority,
+            ProcessNameForMonitoring = ProcessNameForMonitoring,
+            PreLaunchApplications = new List<string>(PreLaunchApplications),
+            MonitoringEnabled = MonitoringEnabled,
+            SafeStartupPreparationEnabled = SafeStartupPreparationEnabled
+        };
+    }
+}
+
+/// <summary>
 /// A single entry of the user's game library.
+/// <para>
+/// The JSON shape is stable. v2.0.0 wrote
+/// <c>Id, Title, LaunchTarget, LogoPath, BackgroundPath, CustomCacheFolderPath,
+/// LastPlayed, LaunchCount, IsFavorite, Category, DominantColor,
+/// DominantColorSource</c>; newer properties default safely when they are absent,
+/// so an existing <c>library.json</c> loads unchanged.
+/// </para>
 /// </summary>
 public sealed class GameItem : INotifyPropertyChanged
 {
@@ -66,6 +170,12 @@ public sealed class GameItem : INotifyPropertyChanged
 
     /// <summary>Logo path the cached <see cref="DominantColor"/> was computed from.</summary>
     public string? DominantColorSource { get; set; }
+
+    /// <summary>
+    /// How the game is launched. Never <c>null</c>: a missing profile deserialises to
+    /// defaults, so an old library keeps launching exactly as before.
+    /// </summary>
+    public LaunchProfile LaunchProfile { get; set; } = new();
 
     /// <summary>
     /// The colour that tints the selected tile's glow. It starts out as the default
@@ -124,6 +234,8 @@ public sealed class GameItem : INotifyPropertyChanged
     {
         var clone = (GameItem)MemberwiseClone();
         clone.PropertyChanged = null;
+        // Deep-copy the profile: an edit must never mutate the stored game.
+        clone.LaunchProfile = LaunchProfile.Clone();
         return clone;
     }
 

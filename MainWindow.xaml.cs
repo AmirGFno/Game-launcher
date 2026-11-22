@@ -1,270 +1,452 @@
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.Threading.Tasks;
-using GameLauncher.Converters;
+using GameLauncher.Bridge;
+using GameLauncher.Bridge.Handlers;
 using GameLauncher.Models;
-using GameLauncher.ViewModels;
+using GameLauncher.NativeServices;
+using GameLauncher.Performance;
+using GameLauncher.Services;
+using GameLauncher.Utilities;
+using GameLauncher.WebView;
+using GameLauncher.WindowManagement;
+using Microsoft.Web.WebView2.Core;
 
 namespace GameLauncher;
 
+/// <summary>
+/// Thin native host. It owns the window, the WebView2 control, the system tray icon
+/// and the bridge; everything the user sees is the React frontend served from a
+/// local virtual host.
+/// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(240));
-    private static readonly Duration TitleAnimationDuration = new(TimeSpan.FromMilliseconds(320));
+    private const string AppHostName = "app.gfno.local";
+    private const string CacheHostName = "cache.gfno.local";
+    private const string AppHostUrl = "https://app.gfno.local/index.html";
+    private const string AppOrigin = "https://" + AppHostName;
 
-    private readonly MainViewModel _viewModel;
-    private readonly DispatcherTimer _spinnerTimer;
-
-    // The two background layers: exactly one is on top (the last one faded in).
-    private System.Windows.Controls.Image _frontLayer = null!;
-
-    // Incremented on every background request so a slow decode started for a game
-    // the user has already left cannot overwrite the newer transition.
-    private int _backgroundGeneration;
-
-    // System-tray icon: closing the window hides it instead of quitting.
+    private BridgeServices? _services;
+    private BridgeServer? _bridge;
+    private WindowController? _windowController;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
-    private bool _isQuitting;
+    private AppSettings _settings = new();
+    private string _wwwRoot = string.Empty;
+    private bool _interfaceReady;
+    private bool _disposed;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow()
     {
         InitializeComponent();
 
-        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        DataContext = viewModel;
-
-        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-
-        _spinnerTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(16)
-        };
-        _spinnerTimer.Tick += OnSpinnerTick;
-
         Loaded += OnLoaded;
-        StateChanged += OnStateChanged;
-        PreviewKeyDown += OnPreviewKeyDown;
-        Closed += OnClosed;
+        Closing += OnClosing;
+        StateChanged += OnWindowSizeStateChanged;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    // ---- Lifecycle -------------------------------------------------------
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        _frontLayer = BackgroundBack;
-        _ = ShowInitialBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        Loaded -= OnLoaded;
 
-        // The library may already have loaded (and selected a game) before the
-        // window subscribed, so animate the title here as well.
-        if (_viewModel.SelectedGame is not null)
-        {
-            AnimateTitle();
-        }
+        _settings = new SettingsService().Load();
+        _windowController = new WindowController(this);
 
-        UpdateMaximizeIcon();
-        _spinnerTimer.Start();
-        EnsureTrayIcon();
-    }
-
-    private void OnClosed(object? sender, EventArgs e)
-    {
-        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        _spinnerTimer.Stop();
-        DisposeTrayIcon();
-    }
-
-    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
-    {
-        // The window is never really closed: it just hides to the system tray.
-        // Only the tray's "Quit" entry (or a real shutdown) ends the process.
-        // Without a tray icon there would be no way back, so fall back to a real
-        // close in that (unlikely) case.
-        if (!_isQuitting && _trayIcon is not null)
-        {
-            e.Cancel = true;
-            Hide();
-            return;
-        }
-
-        DisposeTrayIcon();
-        base.OnClosing(e);
-    }
-
-    /// <summary>
-    /// Selection changed: start the new transition immediately. Nothing is queued -
-    /// a previously running fade/title animation is simply replaced, so rapid
-    /// Left/Right navigation never falls behind the actual selection.
-    /// </summary>
-    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(MainViewModel.SelectedGame))
-        {
-            return;
-        }
-
-        _ = CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
-        AnimateTitle();
-
-        if (_viewModel.SelectedGame is not null)
-        {
-            GamesListBox.ScrollIntoView(_viewModel.SelectedGame);
-        }
-    }
-
-    #region Background transitions
-
-    /// <summary>
-    /// True cross-fade between the two background layers, so the screen never goes
-    /// dark between games. The wallpaper is decoded off the UI thread and cached;
-    /// a request started for a game the user has already left is discarded, so rapid
-    /// Left/Right navigation never falls behind the actual selection.
-    /// </summary>
-    private async Task CrossFadeBackgroundAsync(string? path)
-    {
-        int generation = ++_backgroundGeneration;
-
-        System.Windows.Controls.Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
-        System.Windows.Controls.Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
-
-        // Capture the values the previous animation reached before clearing it.
-        double incomingFrom = incoming.Opacity;
-        double outgoingFrom = outgoing.Opacity;
-
-        BitmapSource? image = await ImageLoader
-            .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
-            .ConfigureAwait(true);
-
-        // A newer navigation has taken over - leave the layers to it.
-        if (generation != _backgroundGeneration)
-        {
-            return;
-        }
-
-        incoming.BeginAnimation(UIElement.OpacityProperty, null);
-        outgoing.BeginAnimation(UIElement.OpacityProperty, null);
-
-        incoming.Source = image;
-        incoming.Opacity = incomingFrom;
-        outgoing.Opacity = outgoingFrom;
-
-        // The layer that fades in renders above the one fading out, but both stay
-        // below the readability overlay (3) and the UI grid (4) - the wallpaper must
-        // never climb above the interface.
-        System.Windows.Controls.Panel.SetZIndex(incoming, 2);
-        System.Windows.Controls.Panel.SetZIndex(outgoing, 1);
-
-        var storyboard = new Storyboard();
-
-        var fadeIn = new DoubleAnimation(incomingFrom, 1, FadeDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
-        };
-        Storyboard.SetTarget(fadeIn, incoming);
-        Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
-
-        var fadeOut = new DoubleAnimation(outgoingFrom, 0, FadeDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
-        };
-        Storyboard.SetTarget(fadeOut, outgoing);
-        Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
-
-        storyboard.Children.Add(fadeIn);
-        storyboard.Children.Add(fadeOut);
-        storyboard.Begin();
-
-        _frontLayer = incoming;
-    }
-
-    /// <summary>Shows the very first background without any transition.</summary>
-    private async Task ShowInitialBackgroundAsync(string? path)
-    {
-        int generation = ++_backgroundGeneration;
-
-        BitmapSource? image = await ImageLoader
-            .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
-            .ConfigureAwait(true);
-
-        // A selection change already took over the background.
-        if (generation != _backgroundGeneration)
-        {
-            return;
-        }
-
-        BackgroundBack.BeginAnimation(UIElement.OpacityProperty, null);
-        BackgroundFront.BeginAnimation(UIElement.OpacityProperty, null);
-        System.Windows.Controls.Panel.SetZIndex(BackgroundBack, 2);
-        System.Windows.Controls.Panel.SetZIndex(BackgroundFront, 1);
-
-        if (image is not null)
-        {
-            BackgroundBack.Source = image;
-        }
-
-        BackgroundBack.Opacity = 1;
-        BackgroundFront.Source = null;
-        BackgroundFront.Opacity = 0;
-
-        _frontLayer = BackgroundBack;
-    }
-
-    #endregion
-
-    #region System tray
-
-    /// <summary>
-    /// Creates the notify icon used to keep the launcher running in the background.
-    /// Created from <c>Loaded</c> so the dispatcher loop is already running.
-    /// </summary>
-    private void EnsureTrayIcon()
-    {
-        if (_trayIcon is not null)
-        {
-            return;
-        }
+        SetupTrayIcon();
+        SetupBridge();
 
         try
         {
-            System.Drawing.Icon? icon = LoadTrayIcon();
-            if (icon is null)
-            {
-                return;
-            }
+            await InitializeWebViewAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            ShowFatal(
+                "The interface could not be started.\n\n" + ex.Message);
+        }
+    }
 
-            var tray = new System.Windows.Forms.NotifyIcon
-            {
-                Icon = icon,
-                Text = "GFno Launcher",
-                Visible = true
-            };
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
 
-            var menu = new System.Windows.Forms.ContextMenuStrip();
-            menu.Items.Add("Open GFno Launcher", null, new EventHandler((_, _) => ShowFromTray()));
-            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            menu.Items.Add("Quit", null, new EventHandler((_, _) => QuitFromTray()));
-            tray.ContextMenuStrip = menu;
+        _disposed = true;
 
-            tray.MouseDoubleClick += (_, _) => ShowFromTray();
-            tray.MouseClick += (_, e) =>
-            {
-                // Some shells only raise MouseClick, so treat a double click there too.
-                if (e.Clicks == 2)
-                {
-                    ShowFromTray();
-                }
-            };
-
-            _trayIcon = tray;
+        try
+        {
+            _services?.Monitor.Stop();
+            (_services?.Monitor as IDisposable)?.Dispose();
         }
         catch
         {
-            // No tray icon - the launcher still works, it just cannot hide to tray.
+            // Best effort during shutdown.
         }
+
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+        WebView.Dispose();
+    }
+
+    // ---- WebView2 --------------------------------------------------------
+
+    private async Task InitializeWebViewAsync()
+    {
+        WebView2RuntimeInfo runtime = WebView2RuntimeChecker.Check();
+        if (!runtime.IsInstalled)
+        {
+            ShowRuntimeMissing(runtime);
+            return;
+        }
+
+        _wwwRoot = LocateWebRoot();
+        if (!Directory.Exists(_wwwRoot))
+        {
+            ShowFatal(
+                "The interface files were not found next to the application.\n\n"
+                + "Expected folder: wwwroot\n"
+                + "Reinstall the application or download the package again.");
+            return;
+        }
+
+        string userDataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "GameLauncher",
+            "WebView2");
+
+        Directory.CreateDirectory(userDataFolder);
+
+        OverlayMessage.Text = "Starting the interface...";
+        OverlayProgress.Visibility = Visibility.Visible;
+
+        CoreWebView2Environment environment = await CoreWebView2Environment
+            .CreateAsync(browserExecutableFolder: null, userDataFolder: userDataFolder)
+            .ConfigureAwait(true);
+
+        await WebView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
+
+        CoreWebView2 core = WebView.CoreWebView2;
+
+        // Production hardening: no dev tools, no context menu, no zoom control, no
+        // accelerator keys, no popups, and no navigation away from the local host.
+        core.Settings.AreDefaultContextMenusEnabled = false;
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+        core.Settings.IsZoomControlEnabled = false;
+        core.Settings.IsStatusBarEnabled = false;
+        core.Settings.IsScriptEnabled = true;
+        core.Settings.IsWebMessageEnabled = true;
+        core.Settings.IsGeneralAutofillEnabled = false;
+        core.Settings.IsPasswordAutosaveEnabled = false;
+        core.Settings.AreDevToolsEnabled = false;
+
+        // Serve the packaged frontend and the thumbnail cache from virtual hosts.
+        // Nothing is served from localhost and nothing depends on a dev server.
+        core.SetVirtualHostNameToFolderMapping(
+            AppHostName,
+            _wwwRoot,
+            CoreWebView2HostResourceAccessKind.Allow);
+
+        core.SetVirtualHostNameToFolderMapping(
+            CacheHostName,
+            _services?.Thumbnails.CacheDirectory ?? string.Empty,
+            CoreWebView2HostResourceAccessKind.Allow);
+
+        core.NavigationStarting += OnNavigationStarting;
+        core.NavigationCompleted += OnNavigationCompleted;
+        core.WebMessageReceived += OnWebMessageReceived;
+        core.NewWindowRequested += OnNewWindowRequested;
+        core.ProcessFailed += OnProcessFailed;
+
+        WebView.Focus();
+        core.Navigate(AppHostUrl);
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Uri))
+        {
+            return;
+        }
+
+        if (Uri.TryCreate(e.Uri, UriKind.Absolute, out Uri? uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && uri.IsDefaultPort
+            && string.Equals(uri.Host, AppHostName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Never render external content inside the launcher. External links are
+        // handed to the default browser instead.
+        e.Cancel = true;
+
+        if (Uri.TryCreate(e.Uri, UriKind.Absolute, out Uri? external)
+            && (external.Scheme == Uri.UriSchemeHttp || external.Scheme == Uri.UriSchemeHttps))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    UseShellExecute = true,
+                    FileName = external.AbsoluteUri
+                });
+            }
+            catch
+            {
+                // No default browser - nothing else to do.
+            }
+        }
+    }
+
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (!_interfaceReady && e.IsSuccess)
+        {
+            _interfaceReady = true;
+            Overlay.Visibility = Visibility.Collapsed;
+            WebView.Focus();
+            return;
+        }
+
+        if (!e.IsSuccess && !_interfaceReady)
+        {
+            ShowFatal(
+                "The interface could not be loaded (HTTP error "
+                + e.WebErrorStatus + ").\n\n"
+                + "Check that the wwwroot folder sits next to GFnoLauncher.exe.");
+        }
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string json = e.WebMessageAsJson;
+
+        string origin = string.Empty;
+        try
+        {
+            string? source = e.Source;
+            if (!string.IsNullOrEmpty(source) && Uri.TryCreate(source, UriKind.Absolute, out Uri? uri))
+            {
+                origin = uri.GetLeftPart(UriPartial.Authority);
+            }
+        }
+        catch
+        {
+            origin = string.Empty;
+        }
+
+        _bridge?.HandleRawMessage(json, origin);
+    }
+
+    private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        // The launcher never opens child windows.
+        e.Handled = true;
+    }
+
+    private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+    {
+        _interfaceReady = false;
+        ShowFatal(
+            "The interface process failed (" + e.ProcessFailedKind + ").\n\n"
+            + "Restart the application. If it keeps happening, reinstall the WebView2 Runtime.");
+    }
+
+    /// <summary>
+    /// Locates the packaged frontend. In a installed / portable run this is the
+    /// wwwroot folder next to the executable; when running from a build output the
+    /// repository's frontend/dist is used so the app stays runnable in development.
+    /// </summary>
+    private static string LocateWebRoot()
+    {
+        string baseDirectory = AppContext.BaseDirectory;
+        string packaged = Path.Combine(baseDirectory, "wwwroot");
+
+        if (Directory.Exists(packaged))
+        {
+            return packaged;
+        }
+
+        if (!baseDirectory.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
+        {
+            return packaged;
+        }
+
+        // Development fallback: <repo>/frontend/dist
+        string? directory = new DirectoryInfo(baseDirectory).Parent?.Parent?.Parent?.Parent?.FullName;
+        if (!string.IsNullOrEmpty(directory))
+        {
+            string candidate = Path.Combine(directory, "frontend", "dist");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return packaged;
+    }
+
+    /// <summary>Posts a message to the frontend on the UI thread.</summary>
+    private void PostMessage(string json)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                WebView?.CoreWebView2?.PostWebMessageAsJson(json);
+            }
+            catch
+            {
+                // The web view is going away.
+            }
+        });
+    }
+
+    // ---- Bridge ------------------------------------------------------
+
+    private void SetupBridge()
+    {
+        var library = new GameLibraryService();
+        var launcher = new GameLauncherService();
+        var cleaner = new TempCleanerService();
+        var thumbnails = new ThumbnailService();
+        var settings = new SettingsService();
+        var history = new GameSessionHistoryService();
+        var monitor = new ProcessMonitorService();
+        var recommendations = new PerformanceRecommendationService();
+        var preparation = new StartupPreparationService();
+
+        _services = new BridgeServices(
+            library,
+            launcher,
+            cleaner,
+            thumbnails,
+            settings,
+            history,
+            monitor,
+            recommendations,
+            preparation,
+            new NativeDialogService(this),
+            _windowController!,
+            "https://" + CacheHostName,
+            GetAppVersion());
+
+        _services.SettingsSnapshot = _settings;
+        _services.EventSink = (type, payload) => _bridge?.PostEvent(type, payload);
+        _services.SettingsApplied = ApplySettings;
+
+        IBridgeHandler[] handlers =
+        {
+            new LibraryGetHandler(_services),
+            new LibraryCreateHandler(_services),
+            new LibraryUpdateHandler(_services),
+            new LibraryDeleteHandler(_services),
+            new GameDetectHandler(_services),
+            new GameLaunchHandler(_services),
+            new GameOpenFolderHandler(_services),
+            new ImageDownloadHandler(_services),
+            new ImageThumbnailHandler(_services),
+            new ImageDominantColorHandler(_services),
+            new SettingsGetHandler(_services),
+            new SettingsSaveHandler(_services),
+            new PerformanceStatusHandler(_services),
+            new PerformanceStartHandler(_services),
+            new PerformanceStopHandler(_services),
+            new PerformanceRecommendationsHandler(_services),
+            new CachePreviewHandler(_services),
+            new CacheCleanHandler(_services),
+            new WindowMinimizeHandler(_services),
+            new WindowMaximizeHandler(_services),
+            new WindowCloseHandler(_services),
+            new WindowSetFullscreenHandler(_services),
+            new DialogOpenFileHandler(_services),
+            new DialogOpenFolderHandler(_services),
+            new SystemOpenPathHandler(_services),
+            new AppVersionHandler(_services),
+            new AppRuntimeStatusHandler(_services)
+        };
+
+        _bridge = new BridgeServer(handlers, PostMessage, AppOrigin);
+
+        monitor.SampleUpdated += (_, sample) => _bridge?.PostEvent("performance.sample", sample);
+        monitor.SessionEnded += (_, status) => _bridge?.PostEvent("performance.sessionEnded", status);
+        _windowController!.StateChanged += (_, state) =>
+            _bridge?.PostEvent("window.state.changed", new { state = state.ToString() });
+    }
+
+    /// <summary>
+    /// Applies settings that the desktop host owns: tray behaviour and the
+    /// per-user "start with Windows" entry.
+    /// </summary>
+    private void ApplySettings(AppSettings settings)
+    {
+        _settings = settings;
+        StartupLaunch.SetEnabled(settings.StartWithWindows, GetExecutablePath());
+    }
+
+    private static string GetExecutablePath()
+    {
+        try
+        {
+            return Process.GetCurrentProcess().MainModule?.FileName
+                   ?? System.Windows.Forms.Application.ExecutablePath;
+        }
+        catch
+        {
+            return System.Windows.Forms.Application.ExecutablePath;
+        }
+    }
+
+    private static string GetAppVersion()
+    {
+        try
+        {
+            Version? version = Assembly.GetEntryAssembly()?.GetName().Version;
+            return version is null ? "2.1.0" : version.ToString(3);
+        }
+        catch
+        {
+            return "2.1.0";
+        }
+    }
+
+    // ---- System tray -----------------------------------------------------
+
+    private void SetupTrayIcon()
+    {
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico");
+
+        System.Drawing.Icon? icon = null;
+        try
+        {
+            if (File.Exists(iconPath))
+            {
+                icon = new System.Drawing.Icon(iconPath);
+            }
+        }
+        catch
+        {
+            icon = null;
+        }
+
+        _trayIcon = new System.Windows.Forms.NotifyIcon
+        {
+            Icon = icon,
+            Text = "GFno Launcher",
+            Visible = true
+        };
+
+        var menu = new System.Windows.Forms.ContextMenuStrip();
+        menu.Items.Add("Open GFno Launcher", null, (_, _) => ShowFromTray());
+        menu.Items.Add("Exit", null, (_, _) => Close());
+
+        _trayIcon.ContextMenuStrip = menu;
+        _trayIcon.DoubleClick += (_, _) => ShowFromTray();
     }
 
     private void ShowFromTray()
@@ -274,309 +456,60 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private void QuitFromTray()
+    private void OnWindowSizeStateChanged(object? sender, EventArgs e)
     {
-        _isQuitting = true;
-        DisposeTrayIcon();
-        System.Windows.Application.Current.Shutdown();
-    }
-
-    private void DisposeTrayIcon()
-    {
-        if (_trayIcon is null)
+        if (_settings.MinimizeToTray && WindowState == WindowState.Minimized)
         {
-            return;
+            // Hide() removes the taskbar button; the tray icon keeps the app reachable.
+            Hide();
         }
-
-        _trayIcon.Visible = false;
-        _trayIcon.Dispose();
-        _trayIcon = null;
     }
 
-    /// <summary>
-    /// The tray icon comes from the executable's own icon (the same
-    /// <c>Assets/icon.ico</c> the compiler embeds), with the embedded resource as a
-    /// fallback for single-file publishes.
-    /// </summary>
-    private static System.Drawing.Icon? LoadTrayIcon()
+    // ---- Fallback UI -----------------------------------------------------
+
+    private void ShowRuntimeMissing(WebView2RuntimeInfo runtime)
     {
-        try
+        Overlay.Visibility = Visibility.Visible;
+        OverlayProgress.Visibility = Visibility.Collapsed;
+
+        OverlayTitle.Text = "WebView2 Runtime is required";
+        OverlayMessage.Text =
+            "GFno Launcher needs the Microsoft Edge WebView2 Runtime, which is not "
+            + "installed on this PC.\n\n"
+            + "It is a free Windows component. Install it from Microsoft's official "
+            + "page, then start GFno Launcher again.";
+
+        OverlayAction.Content = "Open the official WebView2 download page";
+        OverlayAction.Visibility = Visibility.Visible;
+        OverlayAction.Click += (_, _) =>
         {
-            string? executable = Process.GetCurrentProcess().MainModule?.FileName;
-            if (!string.IsNullOrEmpty(executable) && File.Exists(executable))
+            try
             {
-                using System.Drawing.Icon? extracted = System.Drawing.Icon.ExtractAssociatedIcon(executable);
-                if (extracted is not null)
+                Process.Start(new ProcessStartInfo
                 {
-                    return new System.Drawing.Icon(extracted, extracted.Width, extracted.Height);
-                }
+                    UseShellExecute = true,
+                    FileName = WebView2RuntimeInfo.OfficialDownloadUrl
+                });
             }
-        }
-        catch
-        {
-            // Fall through to the embedded resource.
-        }
-
-        try
-        {
-            Stream? stream = System.Reflection.Assembly.GetEntryAssembly()?
-                .GetManifestResourceStream("GameLauncher.Assets.icon.ico");
-            if (stream is not null)
+            catch
             {
-                return new System.Drawing.Icon(stream);
+                // Nothing else to do.
             }
-        }
-        catch
-        {
-            // No tray icon - the launcher still works, it just cannot hide to tray.
-        }
-
-        return null;
-    }
-
-    #endregion
-
-    #region Title animation
-
-    /// <summary>
-    /// Slides the title up into place with a soft fade whenever the selection changes.
-    /// Starts from the values a previous animation reached, so interrupting it mid-way
-    /// does not make the title jump.
-    /// </summary>
-    private void AnimateTitle()
-    {
-        double opacityFrom = TitlePanel.Opacity;
-
-        TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
-        TitlePanel.Opacity = opacityFrom;
-
-        var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        double offsetFrom = transform.Y;
-        transform.Y = offsetFrom;
-        TitlePanel.RenderTransform = transform;
-
-        var storyboard = new Storyboard();
-
-        var fade = new DoubleAnimation(opacityFrom, 1, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
-        Storyboard.SetTarget(fade, TitlePanel);
-        Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
-
-        var slide = new DoubleAnimation(offsetFrom, 0, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(slide, TitlePanel);
-        Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
-
-        storyboard.Children.Add(fade);
-        storyboard.Children.Add(slide);
-        storyboard.Begin();
-    }
-
-    #endregion
-
-    #region Input
-
-    private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (_viewModel.IsCleaning)
-        {
-            return;
-        }
-
-        switch (e.Key)
-        {
-            case Key.Right:
-                if (_viewModel.IsReordering)
-                {
-                    _viewModel.ReorderSelected(1);
-                }
-                else
-                {
-                    _viewModel.MoveNext();
-                }
-
-                e.Handled = true;
-                break;
-
-            case Key.Left:
-                if (_viewModel.IsReordering)
-                {
-                    _viewModel.ReorderSelected(-1);
-                }
-                else
-                {
-                    _viewModel.MovePrevious();
-                }
-
-                e.Handled = true;
-                break;
-
-            case Key.Escape:
-                if (_viewModel.IsReordering)
-                {
-                    _viewModel.IsReordering = false;
-                    e.Handled = true;
-                }
-
-                break;
-
-            case Key.Enter:
-                // While reordering, Enter must not launch the game by accident.
-                if (!_viewModel.IsReordering)
-                {
-                    _viewModel.PlayCommand.Execute(null);
-                    e.Handled = true;
-                }
-
-                break;
-        }
     }
 
     /// <summary>
-    /// The mouse wheel browses through the library (the selected tile is always
-    /// scrolled into view).
+    /// Shows the native fallback panel with an explanation. There is deliberately no
+    /// "retry": initialisation only runs once, and a second attempt would re-subscribe
+    /// the WebView2 events.
     /// </summary>
-    private void GamesListBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void ShowFatal(string message)
     {
-        if (_viewModel.IsCleaning)
-        {
-            return;
-        }
+        Overlay.Visibility = Visibility.Visible;
+        OverlayProgress.Visibility = Visibility.Collapsed;
 
-        if (_viewModel.IsReordering)
-        {
-            // In reorder mode the wheel moves the selected game, like the arrows.
-            _viewModel.ReorderSelected(e.Delta > 0 ? -1 : 1);
-        }
-        else if (e.Delta > 0)
-        {
-            _viewModel.MovePrevious();
-        }
-        else if (e.Delta < 0)
-        {
-            _viewModel.MoveNext();
-        }
-
-        e.Handled = true;
+        OverlayTitle.Text = "GFno Launcher";
+        OverlayMessage.Text = message;
+        OverlayAction.Visibility = Visibility.Collapsed;
     }
-
-    /// <summary>
-    /// Double-clicking a tile launches that game. The click count is used instead of a
-    /// <c>MouseDoubleClick</c> handler because that event lives on <c>Control</c>, and a
-    /// plain <c>Grid</c> is not a <c>Control</c>.
-    /// </summary>
-    private void GameTile_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton != MouseButton.Left || e.ClickCount < 2 || _viewModel.IsCleaning)
-        {
-            return;
-        }
-
-        if (sender is System.Windows.Controls.Button)
-        {
-            return;
-        }
-
-        if (sender is FrameworkElement element && element.DataContext is GameItem game)
-        {
-            _viewModel.SelectedGame = game;
-        }
-
-        _viewModel.PlayCommand.Execute(null);
-    }
-
-    #endregion
-
-    #region Window chrome
-
-    private void OnSpinnerTick(object? sender, EventArgs e)
-    {
-        if (Spinner.RenderTransform is RotateTransform rotate)
-        {
-            rotate.Angle = (rotate.Angle + 5) % 360;
-        }
-    }
-
-    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (IsInsideButton(e.OriginalSource as DependencyObject))
-        {
-            return;
-        }
-
-        // Double-click on the title bar maximizes / restores the window.
-        // (Grid has no MouseDoubleClick event, so the click count is used instead.)
-        if (e.ClickCount == 2)
-        {
-            ToggleMaximize();
-            return;
-        }
-
-        if (e.ButtonState == MouseButtonState.Pressed)
-        {
-            DragMove();
-        }
-    }
-
-    private static bool IsInsideButton(DependencyObject? source)
-    {
-        while (source is not null)
-        {
-            if (source is System.Windows.Controls.Button)
-            {
-                return true;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return false;
-    }
-
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-    {
-        WindowState = WindowState.Minimized;
-    }
-
-    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleMaximize();
-    }
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
-
-    private void ToggleMaximize()
-    {
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        UpdateMaximizeIcon();
-    }
-
-    private void OnStateChanged(object? sender, EventArgs e)
-    {
-        UpdateMaximizeIcon();
-    }
-
-    private void UpdateMaximizeIcon()
-    {
-        if (MaximizeIcon is null)
-        {
-            return;
-        }
-
-        // Both glyphs are 16x16: a single square when normal, two overlapping
-        // squares (restore) when maximized.
-        MaximizeIcon.Data = Geometry.Parse(
-            WindowState == WindowState.Maximized
-                ? "M6.5,3 H13 V9.5 H6.5 Z M3,6.5 H9.5 V13 H3 Z"
-                : "M3,3 H13 V13 H3 Z");
-    }
-
-    #endregion
 }

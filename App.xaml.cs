@@ -5,8 +5,7 @@ using System.Windows;
 using System.Windows.Markup;
 using System.Windows.Threading;
 using GameLauncher.Services;
-using GameLauncher.ViewModels;
-using GameLauncher.Views;
+using GameLauncher.Utilities;
 
 namespace GameLauncher;
 
@@ -15,6 +14,8 @@ public partial class App : System.Windows.Application
     // A named mutex is the reliable way to detect a second launcher: it survives
     // across processes and is released automatically when the owner exits.
     private const string SingleInstanceMutexName = @"Global\GFnoLauncher.SingleInstance";
+    private const int SW_RESTORE = 9;
+
     private Mutex? _singleInstanceMutex;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -47,17 +48,10 @@ public partial class App : System.Windows.Application
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
-        // Manual dependency composition (no external DI package needed).
-        IGameLibraryService library = new GameLibraryService();
-        ITempCleanerService tempCleaner = new TempCleanerService();
-        IGameLauncherService launcher = new GameLauncherService();
-        IDialogService dialogs = new DialogService();
+        MainWindow = new MainWindow();
+        MainWindow.Show();
 
-        var viewModel = new MainViewModel(library, tempCleaner, launcher, dialogs);
-        var mainWindow = new MainWindow(viewModel);
-
-        MainWindow = mainWindow;
-        mainWindow.Show();
+        ApplyStoredStartupPreference();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -68,6 +62,36 @@ public partial class App : System.Windows.Application
         _singleInstanceMutex = null;
 
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Keeps the per-user startup entry consistent with the settings file, so a
+    /// settings file copied from another machine cannot silently enable startup.
+    /// </summary>
+    private static void ApplyStoredStartupPreference()
+    {
+        try
+        {
+            var settings = new SettingsService().Load();
+            StartupLaunch.SetEnabled(settings.StartWithWindows, GetExecutablePath());
+        }
+        catch
+        {
+            // Startup behaviour is a convenience; never block launch on it.
+        }
+    }
+
+    private static string GetExecutablePath()
+    {
+        try
+        {
+            return Process.GetCurrentProcess().MainModule?.FileName
+                   ?? System.Windows.Forms.Application.ExecutablePath;
+        }
+        catch
+        {
+            return System.Windows.Forms.Application.ExecutablePath;
+        }
     }
 
     /// <summary>
@@ -91,8 +115,6 @@ public partial class App : System.Windows.Application
         SetForegroundWindow(handle);
     }
 
-    private const int SW_RESTORE = 9;
-
     [DllImport("user32.dll")]
     private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
 
@@ -114,8 +136,7 @@ public partial class App : System.Windows.Application
 
     /// <summary>
     /// Flattens the whole exception chain, outermost first, so the innermost cause is
-    /// visible in the dialog. WPF wraps the real failure (for example
-    /// <c>IOException: Cannot locate resource 'assets/icon.png'</c>) inside a generic
+    /// visible in the dialog. WPF wraps real failures inside a generic
     /// <see cref="XamlParseException"/>, which on its own does not say what is wrong.
     /// </summary>
     private static string DescribeException(Exception exception)
