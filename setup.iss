@@ -30,7 +30,9 @@ DisableWelcomePage=no
 ; Relative paths are resolved against this script's directory, so the compiled
 ; installer lands next to setup.iss regardless of the caller's working directory.
 OutputDir=.
-OutputBaseFilename=GameLauncherSetup
+; The release workflow renames the compiled installer to include the version, so
+; the asset is published as GFnoLauncher-Setup-<version>.exe.
+OutputBaseFilename=GFnoLauncher-Setup
 
 Compression=lzma2/max
 SolidCompression=yes

@@ -46,7 +46,9 @@ public sealed class GameItemTests
         var missing = new GameItem { LaunchTarget = @"C:\Definitely\Missing\game.exe" };
         Assert.False(missing.IsInstalled);
 
+        // A store URI has no local executable to look for, so it is never reported
+        // as installed (IsInstalled reflects whether the target executable exists).
         var uri = new GameItem { LaunchTarget = "steam://rungameid/1" };
-        Assert.True(uri.IsInstalled);
+        Assert.False(uri.IsInstalled);
     }
 }

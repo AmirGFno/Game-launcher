@@ -16,7 +16,7 @@
     <Product>GFno Launcher</Product>
     <Title>GFno Launcher</Title>
     <Description>A minimalist, PlayStation-5-style Windows game launcher.</Description>
-    <Version>2.0.0-beta.1</Version>
+    <Version>2.0.0</Version>
     <!-- Keep the assembly/manifest version in sync (app.manifest). -->
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
@@ -28,7 +28,13 @@
     <!-- Used to read the icon embedded in a game executable (System.Drawing.Icon). -->
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
     <!-- Pure-managed image library: adds WebP decoding (and a fallback for any
-         format WPF cannot read) on top of WPF's built-in PNG/JPEG/BMP/GIF/ICO. -->
+         format WPF cannot read) on top of WPF's built-in PNG/JPEG/BMP/GIF/ICO.
+         Deliberately pinned to 3.1.12: 3.2.0 is the first release that patches the
+         published ImageSharp advisories, but it also introduces build-time license
+         enforcement (build/SixLabors.ImageSharp.targets -> SixLabors_ValidateLicense,
+         "No Six Labors license found ... please obtain a license from
+         sixlabors.com/pricing/"), which this free project cannot satisfy. Upgrading
+         requires a commercial Six Labors license; until then 3.1.12 stays. -->
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
@@ -50,6 +56,19 @@
   <ItemGroup>
     <!-- Lets the unit tests call the internal image-validation helper. -->
     <InternalsVisibleTo Include="GFnoLauncher.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- This project file sits at the repository root, so the SDK's default
+         **/*.cs glob also matches tests/GFnoLauncher.Tests/*.cs. The app project
+         would then compile the unit-test sources and fail with CS0246 on
+         "using Xunit;" (observed in CI: the Build step went red and the Test
+         step was skipped). Keep the test project independent from the app. -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <Resource Remove="tests\**" />
+    <Page Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
   </ItemGroup>
 
 </Project>

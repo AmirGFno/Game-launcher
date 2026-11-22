@@ -7,8 +7,8 @@ PlayStation-5-inspired carousel.
 
 ![theme](https://img.shields.io/badge/theme-PS5--style-0b0e14) ![platform](https://img.shields.io/badge/platform-Windows-0070d1) ![framework](https://img.shields.io/badge/.NET-10-512bd4)
 
-> **v2.0.0-beta** — the backend has been safety-hardened and modernised (Phase 1–2 of the
-> roadmap). The React + WebView2 frontend (Phase 3–6) is the next increment.
+> **v2.0.0** — stable release. The backend has been safety-hardened and modernised
+> (Phase 1–2 of the roadmap). The React + WebView2 frontend (Phase 3–6) is the next increment.
 
 ---
 
@@ -197,9 +197,12 @@ Two workflows live in [`.github/workflows`](.github/workflows):
   runs the test suite on `windows-latest` with the .NET 10 SDK.
 - **`release.yml`** — on every `v*` tag: runs the tests, publishes a **self-contained
   single-file** Windows executable (`dotnet publish -c Release -r win-x64 --self-contained
-  true -p:PublishSingleFile=true`), zips it as **`GameLauncher.zip`**, installs **Inno Setup
-  7** and compiles **`setup.iss`** into **`GameLauncherSetup.exe`**, then attaches both to a
-  GitHub release.
+  true -p:PublishSingleFile=true`), verifies the publish output, zips it as
+  **`GFnoLauncher-<version>-win-x64-portable.zip`**, installs **Inno Setup 7** and compiles
+  **`setup.iss`** into **`GFnoLauncher-Setup-<version>.exe`**, generates a
+  **`SHA256SUMS.txt`** for both packages, then attaches all three to a GitHub release.
+  The `<Version>` in `GameLauncher.csproj` is cross-checked against the tag, so a mismatched
+  tag fails the release instead of publishing the wrong file names.
 
 ### Trigger a release
 
@@ -215,7 +218,7 @@ git push origin v2.0.0
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 & "C:\Program Files\Inno Setup 7\ISCC.exe" setup.iss
-.\GameLauncherSetup.exe
+.\GFnoLauncher-Setup.exe
 ```
 
 ---

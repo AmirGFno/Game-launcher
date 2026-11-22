@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <!-- GameItem uses WPF colour types, so the test project needs the desktop runtime. -->
+    <!-- GameItem uses WPF colour types, so the test project needs the WPF
+         reference assemblies. Windows Forms is not used by any test. -->
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <AssemblyName>GFnoLauncher.Tests</AssemblyName>
@@ -15,11 +15,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Floating minor versions: the test packages are restored from NuGet at build
-         time, so this stays compatible with whichever SDK the runner installs. -->
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
+    <!-- Pinned versions on purpose: floating "17.*" / "2.*" ranges make the
+         restore depend on whatever NuGet serves that day, so a new package
+         release can break CI without any change in this repository. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.2" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,5 @@
 using Xunit;
+using System.IO;
 using GameLauncher.Models;
 using GameLauncher.Services;
 
