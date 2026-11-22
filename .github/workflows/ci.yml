@@ -26,19 +26,19 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          dotnet --info 2>&1 | Tee-Object -FilePath debug.log
-          dotnet nuget list source 2>&1 | Tee-Object -FilePath -Append debug.log
-          dotnet restore tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -v normal 2>&1 | Tee-Object -FilePath -Append debug.log
-          dotnet build tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --no-restore --nologo -v normal 2>&1 | Tee-Object -FilePath -Append debug.log
-          $lines = Get-Content debug.log | Where-Object { $_ -match 'xunit|Test\.Sdk|error|warning|Unable|NU[0-9]{3}|not found|Assets file|Restored' }
-          $lineNo = 0
-          foreach ($line in $lines) {
-            $lineNo++
-            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($line))
-            Write-Host "::error file=debug.log,line=$lineNo::$b64"
-            if ($lineNo -ge 30) { break }
-          }
+          $log = Join-Path $env:GITHUB_WORKSPACE "debug.log"
+          dotnet --info *>&1 | Tee-Object -FilePath $log
+          dotnet nuget list source *>&1 | Tee-Object -FilePath $log -Append
+          dotnet restore tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -v normal *>&1 | Tee-Object -FilePath $log -Append
+          dotnet build tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --no-restore --nologo -v normal *>&1 | Tee-Object -FilePath $log -Append
           Write-Host "DEBUG DONE"
+          $lines = Get-Content $log | Where-Object { $_ -match 'xunit|Test\.Sdk|error|warning|Unable|NU[0-9]{3}|not found|Assets file|Restored|PackageReference' }
+          $n = 0
+          foreach ($line in $lines) {
+            $n++
+            if ($n -gt 40) { break }
+            Write-Host ("::error file=debug.log,line={0}::{1}" -f $n, $line)
+          }
 
       - name: Upload debug logs
         if: always()
