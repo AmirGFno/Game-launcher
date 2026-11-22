@@ -22,8 +22,37 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Build
-        run: dotnet build GameLauncher.csproj -c Release --nologo -v minimal
+      - name: Debug
+        if: always()
+        continue-on-error: true
+        run: |
+          $log = Join-Path $env:GITHUB_WORKSPACE "debug.log"
+          dotnet --info *>&1 | Tee-Object -FilePath $log
+          dotnet nuget list source *>&1 | Tee-Object -FilePath $log -Append
+          dotnet restore tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -v normal *>&1 | Tee-Object -FilePath $log -Append
+          dotnet build tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --no-restore --nologo -v normal *>&1 | Tee-Object -FilePath $log -Append
+          Write-Host "DEBUG DONE"
+          $out = New-Object System.Text.StringBuilder
+          [void]$out.AppendLine("ASSETS_EXISTS=" + (Test-Path "tests/GFnoLauncher.Tests/obj/project.assets.json"))
+          if (Test-Path "tests/GFnoLauncher.Tests/obj/project.assets.json") {
+            $a = Get-Content "tests/GFnoLauncher.Tests/obj/project.assets.json" -Raw
+            [void]$out.AppendLine("ASSETS_LEN=" + $a.Length)
+            [void]$out.AppendLine("XUNIT_KEYS=" + (([regex]::Matches($a, '"xunit[^"]*"') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ","))
+          }
+          [void]$out.AppendLine("=== LIST ===")
+          [void]$out.AppendLine((dotnet list tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj package --include-transitive 2>&1 | Out-String))
+          [void]$out.AppendLine("=== TAIL ===")
+          [void]$out.AppendLine((Get-Content $log -Tail 40 | Out-String))
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($out.ToString()))
+          Write-Host "::error file=summary.log::SUM $b64"
 
-      - name: Test
-        run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
+      - name: Upload debug logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-logs
+          path: |
+            debug.log
+            tests/GFnoLauncher.Tests/obj/project.assets.json
+          if-no-files-found: warn
+          retention-days: 1
