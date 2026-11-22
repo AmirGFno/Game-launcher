@@ -29,11 +29,13 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
     <!-- Pure-managed image library: adds WebP decoding (and a fallback for any
          format WPF cannot read) on top of WPF's built-in PNG/JPEG/BMP/GIF/ICO.
-         3.2.0 is the first 3.x release that patches every published ImageSharp
-         advisory (TIFF fax/CCITT encoders and decoders, HistogramEqualization,
-         ICC CLUT parsing, BigTIFF IFD loop); 3.1.12 is vulnerable to all of
-         them. Staying on 3.x keeps the API this code already uses. -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" />
+         Deliberately pinned to 3.1.12: 3.2.0 is the first release that patches the
+         published ImageSharp advisories, but it also introduces build-time license
+         enforcement (build/SixLabors.ImageSharp.targets -> SixLabors_ValidateLicense,
+         "No Six Labors license found ... please obtain a license from
+         sixlabors.com/pricing/"), which this free project cannot satisfy. Upgrading
+         requires a commercial Six Labors license; until then 3.1.12 stays. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
   <ItemGroup>
