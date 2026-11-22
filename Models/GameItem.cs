@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
@@ -30,11 +31,31 @@ public sealed class GameItem : INotifyPropertyChanged
     /// <summary>Optional path to the full screen background image (.png / .jpg / .webp).</summary>
     public string? BackgroundPath { get; set; }
 
-    /// <summary>Optional folder whose contents are deleted before every launch.</summary>
+    /// <summary>
+    /// Legacy per-game cache folder. It is preserved for backward compatibility but is
+    /// <b>never</b> deleted automatically - cleanup only touches the application's own
+    /// cache and must be started by the user.
+    /// </summary>
     public string? CustomCacheFolderPath { get; set; }
 
     /// <summary>Timestamp of the last successful launch.</summary>
     public DateTime? LastPlayed { get; set; }
+
+    /// <summary>How many times this game was launched successfully.</summary>
+    public int LaunchCount { get; set; }
+
+    /// <summary>User favourite, used by the library filters.</summary>
+    public bool IsFavorite { get; set; }
+
+    /// <summary>Optional user-defined category / collection.</summary>
+    public string? Category { get; set; }
+
+    /// <summary>
+    /// True when the launch target is a local executable that currently exists.
+    /// URIs (steam://, ...) are always considered installed.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsInstalled => !GameTarget.IsUri(LaunchTarget) && File.Exists(LaunchTarget);
 
     /// <summary>
     /// Dominant logo colour as <c>#AARRGGBB</c>. Persisted so the glow does not have
@@ -93,6 +114,17 @@ public sealed class GameItem : INotifyPropertyChanged
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Creates a shallow copy that keeps every persisted field - including fields added
+    /// in future versions - so editing a game can never silently drop metadata.
+    /// </summary>
+    public GameItem Clone()
+    {
+        var clone = (GameItem)MemberwiseClone();
+        clone.PropertyChanged = null;
+        return clone;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

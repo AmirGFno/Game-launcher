@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="1.5.4.0" name="GFnoLauncher.app" />
+  <assemblyIdentity version="2.0.0.0" name="GFnoLauncher.app" />
 
   <!--
-    The launcher clears %TEMP% and C:\Windows\Temp before every launch, which
-    requires elevated rights. requireAdministrator makes Windows prompt for UAC
-    when the application starts.
+    The launcher runs as a standard user. Nothing it does needs elevation, so the
+    manifest requests the default (asInvoker) execution level instead of forcing a
+    UAC prompt at startup. A game that itself needs elevation will trigger Windows'
+    own prompt when it is launched.
   -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

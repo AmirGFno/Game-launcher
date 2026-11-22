@@ -7,7 +7,7 @@ namespace GameLauncher.ViewModels;
 public sealed class GameEditorViewModel : ObservableObject
 {
     private readonly IDialogService _dialog;
-    private readonly Guid _id;
+    private readonly GameItem? _existing;
 
     private string _title = string.Empty;
     private string _launchTarget = string.Empty;
@@ -26,19 +26,15 @@ public sealed class GameEditorViewModel : ObservableObject
         _dialog = dialog ?? throw new ArgumentNullException(nameof(dialog));
 
         WindowTitle = existing is null ? "Add Game" : "Edit Game";
+        _existing = existing;
 
         if (existing is not null)
         {
-            _id = existing.Id;
             _title = existing.Title;
             _launchTarget = existing.LaunchTarget;
             _logoPath = existing.LogoPath;
             _backgroundPath = existing.BackgroundPath;
             _customCacheFolderPath = existing.CustomCacheFolderPath;
-        }
-        else
-        {
-            _id = Guid.NewGuid();
         }
 
         SaveCommand = new RelayCommand(Save);
@@ -122,15 +118,16 @@ public sealed class GameEditorViewModel : ObservableObject
             return;
         }
 
-        Result = new GameItem
-        {
-            Id = _id,
-            Title = Title.Trim(),
-            LaunchTarget = LaunchTarget.Trim(),
-            LogoPath = string.IsNullOrWhiteSpace(LogoPath) ? null : LogoPath!.Trim(),
-            BackgroundPath = string.IsNullOrWhiteSpace(BackgroundPath) ? null : BackgroundPath!.Trim(),
-            CustomCacheFolderPath = string.IsNullOrWhiteSpace(CustomCacheFolderPath) ? null : CustomCacheFolderPath!.Trim()
-        };
+        // Clone the existing item so LastPlayed, LaunchCount, favourites, the cached
+        // dominant colour and any future field survive the edit.
+        GameItem result = _existing is null ? new GameItem() : _existing.Clone();
+        result.Title = Title.Trim();
+        result.LaunchTarget = LaunchTarget.Trim();
+        result.LogoPath = string.IsNullOrWhiteSpace(LogoPath) ? null : LogoPath!.Trim();
+        result.BackgroundPath = string.IsNullOrWhiteSpace(BackgroundPath) ? null : BackgroundPath!.Trim();
+        result.CustomCacheFolderPath = string.IsNullOrWhiteSpace(CustomCacheFolderPath) ? null : CustomCacheFolderPath!.Trim();
+
+        Result = result;
 
         RequestClose?.Invoke(this, true);
     }

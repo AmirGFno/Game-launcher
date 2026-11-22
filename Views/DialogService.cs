@@ -28,7 +28,7 @@ public sealed class DialogService : IDialogService
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Select the folder that should be cleaned before the game starts",
+            Description = "Select the legacy per-game cache folder (never cleaned automatically)",
             UseDescriptionForTitle = true,
             ShowNewFolderButton = true
         };

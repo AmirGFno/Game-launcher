@@ -94,7 +94,7 @@
                     Style="{StaticResource GhostButtonStyle}" Command="{Binding BrowseCacheFolderCommand}"
                     Width="82" Margin="10,16,0,0" />
             <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3"
-                       Text="Optional - its contents are deleted before every launch"
+                       Text="Legacy setting - kept for compatibility only. It is never deleted automatically; use the cache button to clean the app's own cache."
                        FontSize="11" Foreground="#FF7C8AA5" Margin="0,60,0,0" />
         </Grid>
 

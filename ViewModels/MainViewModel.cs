@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
         DeleteGameCommand = new RelayCommand(DeleteGame, () => SelectedGame is not null && !IsCleaning);
         ToggleReorderCommand = new RelayCommand(() => IsReordering = !IsReordering,
             () => SelectedGame is not null && !IsCleaning);
+        CleanCacheCommand = new AsyncRelayCommand(CleanCacheAsync, () => !IsCleaning);
         CancelCommand = new RelayCommand(() => PlayCommand.Cancel());
 
         Games.CollectionChanged += (_, _) =>
@@ -126,6 +127,9 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand DeleteGameCommand { get; }
 
     public RelayCommand ToggleReorderCommand { get; }
+
+    /// <summary>Optional, explicitly initiated cleanup of the app's own cache.</summary>
+    public AsyncRelayCommand CleanCacheCommand { get; }
 
     public RelayCommand CancelCommand { get; }
 
@@ -214,31 +218,17 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        // The launch path is deliberately lightweight: no cleanup, no artificial
+        // delay - just start the process and record the launch.
         IsCleaning = true;
-        StatusMessage = "Cleaning Temp files...";
+        StatusMessage = $"Launching {game.Title}...";
 
         try
         {
-            var extraFolders = new List<string>();
-            if (!string.IsNullOrWhiteSpace(game.CustomCacheFolderPath))
-            {
-                extraFolders.Add(game.CustomCacheFolderPath);
-            }
-
-            CleanupResult result = await _tempCleaner.CleanAsync(extraFolders, _progress, cancellationToken)
-                                                 .ConfigureAwait(true);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            StatusMessage = result.Skipped > 0
-                ? $"Removed {result.Deleted} item(s), skipped {result.Skipped}."
-                : $"Removed {result.Deleted} item(s).";
-
-            await Task.Delay(400, cancellationToken).ConfigureAwait(true);
-
-            StatusMessage = $"Launching {game.Title}...";
             _launcher.Launch(game);
 
             game.LastPlayed = DateTime.Now;
+            game.LaunchCount++;
             await PersistAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
@@ -248,6 +238,72 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _dialog.ShowError("Could not launch the game", ex.Message);
+        }
+        finally
+        {
+            IsCleaning = false;
+            StatusMessage = string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Optional cleanup of the application's own cache. Shows a preview and asks for
+    /// confirmation first - nothing is ever deleted automatically.
+    /// </summary>
+    private async Task CleanCacheAsync(CancellationToken cancellationToken)
+    {
+        CleanupPreview preview;
+        try
+        {
+            preview = await _tempCleaner.PreviewAsync(cancellationToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _dialog.ShowError("Cache cleanup failed", ex.Message);
+            return;
+        }
+
+        if (preview.EntryCount == 0)
+        {
+            _dialog.ShowInfo("Cache is empty", "There is nothing to clean.");
+            return;
+        }
+
+        double megabytes = preview.TotalBytes / (1024.0 * 1024.0);
+        bool confirmed = _dialog.Confirm(
+            "Clean cache",
+            $"Delete {preview.EntryCount} item(s) ({megabytes:0.0} MB) from the GFno Launcher cache?\n\n" +
+            $"Only the app's own cache folder is touched:\n{_tempCleaner.CacheDirectory}");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        IsCleaning = true;
+        StatusMessage = "Cleaning cache...";
+
+        try
+        {
+            CleanupResult result = await _tempCleaner
+                .CleanAsync(_progress, cancellationToken)
+                .ConfigureAwait(true);
+
+            _dialog.ShowInfo(
+                "Cache cleaned",
+                $"Removed {result.Deleted} item(s), skipped {result.Skipped}.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user.
+        }
+        catch (Exception ex)
+        {
+            _dialog.ShowError("Cache cleanup failed", ex.Message);
         }
         finally
         {
@@ -390,5 +446,6 @@ public sealed class MainViewModel : ObservableObject
         EditGameCommand.RaiseCanExecuteChanged();
         DeleteGameCommand.RaiseCanExecuteChanged();
         ToggleReorderCommand.RaiseCanExecuteChanged();
+        CleanCacheCommand.RaiseCanExecuteChanged();
     }
 }

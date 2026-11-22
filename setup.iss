@@ -8,7 +8,7 @@
 ; ============================================================================
 
 #define MyAppName     "GFno Launcher"
-#define MyAppVersion  "1.5.4"
+#define MyAppVersion  "2.0.0"
 #define MyAppExeName  "GFnoLauncher.exe"
 
 [Setup]
@@ -18,9 +18,8 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=GFno
 
-; Install for all users - the launcher clears %TEMP% and C:\Windows\Temp,
-; so it must run elevated.
-PrivilegesRequired=admin
+; The launcher runs as a standard user - nothing it does requires elevation.
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
 DefaultDirName={autopf}\{#MyAppName}
