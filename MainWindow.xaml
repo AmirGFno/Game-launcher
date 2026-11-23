@@ -84,6 +84,7 @@
             </Rectangle.Fill>
         </Rectangle>
 
+        <Grid x:Name="ChromeRoot" Panel.ZIndex="4">
         <!-- ============ Layer 4: all UI ============ -->
         <Grid Panel.ZIndex="4">
             <Grid.RowDefinitions>
@@ -184,6 +185,7 @@
         </Rectangle>
 
         <!-- ============ Layer 6: bottom-right actions: Reorder / Edit / Delete ============ -->
+        <Grid x:Name="BottomBar" Height="96" VerticalAlignment="Bottom" Panel.ZIndex="6">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
                     Margin="0,0,28,28" Panel.ZIndex="6">
             <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Clean the app cache (optional)"
@@ -223,6 +225,8 @@
             </TextBlock.Effect>
         </TextBlock>
 
+        </Grid>
+
         <!-- ============ Layer 7: loading overlay (temp cleanup / launch) ============ -->
         <Grid Background="#CC000000" Panel.ZIndex="7"
               Visibility="{Binding IsCleaning, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -250,5 +254,6 @@
             </StackPanel>
         </Grid>
 
+        </Grid>
     </Grid>
 </Window>

@@ -1,16 +1,12 @@
-<Window x:Class="GameLauncher.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Settings" Width="520" Height="540" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" Background="#10192B" Foreground="White">
- <Grid Margin="28"><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
- <StackPanel><TextBlock Text="Your launcher" FontFamily="Segoe UI Semibold" FontSize="26" Margin="0,0,0,22"/>
- <TextBlock Text="CAROUSEL STYLE" Foreground="#72DECE" Margin="0,0,0,10"/>
- <RadioButton x:Name="Loop" Content="Loop (PS5 Style)" Foreground="White" GroupName="Style" Margin="0,0,0,10"/>
- <RadioButton x:Name="Anchor" Content="Fixed Anchor" Foreground="White" GroupName="Style" Margin="0,0,0,22"/>
- <CheckBox x:Name="Fullscreen" Content="Fullscreen — hide the top bar (F11 to toggle)" Foreground="White" Margin="0,0,0,18"/>
- <CheckBox x:Name="Cleanup" Content="Temp cleanup before launching" Foreground="White"/>
- <TextBlock Text="Only GFno's own cache. Windows Temp, games and personal folders are never cleaned." TextWrapping="Wrap" FontSize="12" Foreground="#9BAAC2" Margin="22,6,0,18"/>
- <CheckBox x:Name="Tray" Content="Close to Tray (unchecked: Quit on Close)" Foreground="White" Margin="0,0,0,20"/>
- <Button Content="Clear downloaded artwork…" Click="ClearArtwork_Click" Style="{StaticResource GhostButtonStyle}" Padding="14,8" HorizontalAlignment="Left"/>
- <TextBlock x:Name="Result" TextWrapping="Wrap" Foreground="#B9A8EF" Margin="0,10,0,0"/>
- </StackPanel>
- <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="Cancel" IsCancel="True" Padding="18,9" Margin="0,0,10,0"/><Button Content="Save settings" IsDefault="True" Click="Save_Click" Padding="18,9"/></StackPanel>
+<Window x:Class="GameLauncher.Views.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="GFno Launcher · Settings" Icon="/Assets/icon.ico" Width="620" Height="760" MinHeight="540" ResizeMode="CanResize" WindowStartupLocation="CenterOwner" Background="#0C1320" Foreground="#EDF2FA" FontFamily="Segoe UI">
+ <Window.Resources><ResourceDictionary Source="MenuStyles.xaml"/></Window.Resources>
+ <Grid Margin="28"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+ <StackPanel Margin="0,0,0,22"><TextBlock Text="Make it yours" FontFamily="Segoe UI Semibold" FontSize="28"/><TextBlock Text="Presentation, window behavior and local storage." Style="{StaticResource MenuHelp}"/></StackPanel>
+ <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel>
+ <Border Style="{StaticResource MenuCard}"><StackPanel><TextBlock Text="CAROUSEL" Style="{StaticResource MenuSection}"/><RadioButton x:Name="Loop" Content="Loop Style" GroupName="Carousel"/><TextBlock Text="Square tiles, compact spacing and a left-biased selection. No glow." Style="{StaticResource MenuHelp}"/><RadioButton x:Name="Anchor" Content="Fixed Anchor" GroupName="Carousel"/><TextBlock Text="Original WPF proportions, centered title and a subtle white selection glow." Style="{StaticResource MenuHelp}"/></StackPanel></Border>
+ <Border Style="{StaticResource MenuCard}"><StackPanel><TextBlock Text="WINDOW AND TRAY" Style="{StaticResource MenuSection}"/><CheckBox x:Name="Fullscreen" Content="Fullscreen"/><TextBlock Text="F11 toggles fullscreen. Move to the top or bottom edge to reveal controls." Style="{StaticResource MenuHelp}"/><CheckBox x:Name="Tray" Content="Close to Tray"/><TextBlock Text="When unchecked, closing the window quits the launcher." Style="{StaticResource MenuHelp}"/></StackPanel></Border>
+ <Border Style="{StaticResource MenuCard}"><StackPanel><TextBlock Text="LOCAL STORAGE" Style="{StaticResource MenuSection}"/><CheckBox x:Name="Cleanup" Content="Clean app cache before launching"/><TextBlock Text="Only GFno's cache is cleaned. Windows Temp, games and personal folders are never touched." Style="{StaticResource MenuHelp}"/><Button Content="Clear downloaded artwork…" Click="ClearArtwork_Click" Style="{StaticResource MenuButton}" HorizontalAlignment="Left" Margin="0,18,0,0"/><TextBlock Text="Only tracked downloads are removed after confirmation. Your library and manual artwork are kept." Style="{StaticResource MenuHelp}"/><TextBlock x:Name="Result" Style="{StaticResource MenuHelp}"/></StackPanel></Border>
+ </StackPanel></ScrollViewer>
+ <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"><Button Content="Cancel" IsCancel="True" Style="{StaticResource MenuButton}" Margin="0,0,12,0"/><Button Content="Save settings" IsDefault="True" Click="Save_Click" Style="{StaticResource MenuPrimary}"/></StackPanel>
  </Grid>
 </Window>

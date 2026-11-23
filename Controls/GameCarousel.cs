@@ -91,7 +91,7 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
         double anchor = Fixed ? ActualWidth / 2 - size / 2 : 2 * pitch;
         // Reserve a complete slot on the right; the mask applies only to artwork, never to the title.
         double viewport = Fixed ? ActualWidth : Math.Min(ActualWidth - pitch, visible * pitch);
-        _tiles.Width = Math.Max(0, viewport); _tiles.HorizontalAlignment = HorizontalAlignment.Left;
+        _tiles.Width = Math.Max(0, viewport); _tiles.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         _tiles.OpacityMask = new LinearGradientBrush(new GradientStopCollection {
             new(Colors.Transparent, 0), new(Colors.White, Fixed ? .05 : .12),
             new(Colors.White, Fixed ? .95 : .84), new(Colors.Transparent, 1) }, 0);
@@ -128,7 +128,7 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
             tile.Opacity = Fixed && slot != 0 ? .82 : 1;
         }
         foreach (int key in _visuals.Keys.Where(k => !needed.Contains(k)).ToArray()) { _tiles.Children.Remove(_visuals[key]); _visuals.Remove(key); }
-        _title.HorizontalAlignment = Fixed ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        _title.HorizontalAlignment = Fixed ? System.Windows.HorizontalAlignment.Stretch : System.Windows.HorizontalAlignment.Left;
         _title.VerticalAlignment = VerticalAlignment.Top;
         _title.TextAlignment = Fixed ? TextAlignment.Center : TextAlignment.Left;
         _title.Margin = Fixed ? new Thickness(20, 16, 20, 0) : new Thickness(anchor + size + 8, 44 + size + 12, 20, 0);

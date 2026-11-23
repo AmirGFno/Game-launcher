@@ -39,13 +39,50 @@ public sealed class SteamScannerService
                 roots.Add(match.Groups[1].Value.Replace(@"\\", @"\"));
         return roots.SelectMany(path => ReadManifests(Path.Combine(path,"steamapps"))).DistinctBy(g => g.AppId).ToList();
     }
-    public async Task<GameItem> CreateAsync(SteamGame game, CancellationToken token)
+    public static uint? AppIdFromTarget(string? target)
+    {
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.Scheme != "steam") return null;
+        if (uri.Host is not ("run" or "rungameid")) return null;
+        return uint.TryParse(uri.AbsolutePath.Trim('/').Split('/')[0], out uint id) && id > 0 ? id : null;
+    }
+    public static IEnumerable<string> ArtworkUrls(uint id, bool hero)
+    {
+        string[] files = hero ? new[] { "library_hero.jpg", "page_bg_generated_v6b.jpg", "header.jpg" }
+            : new[] { "library_600x900.jpg", "library_capsule.jpg", "capsule_616x353.jpg", "header.jpg", "logo.png" };
+        string[] roots = { "https://cdn.cloudflare.steamstatic.com/steam/apps/", "https://cdn.akamai.steamstatic.com/steam/apps/", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/" };
+        foreach (string root in roots) foreach (string file in files) yield return $"{root}{id}/{file}";
+    }
+    public async Task<GameItem> CreateAsync(SteamGame game, CancellationToken token, IProgress<string>? progress = null)
     {
         var item = new GameItem { Title = game.Name, LaunchTarget = $"steam://rungameid/{game.AppId}" };
-        try { item.LogoPath = await ImageDownloader.DownloadAsync(LogoUrl(game.AppId),token); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { /* Offline/missing artwork never prevents importing a game. */ }
-        try { item.BackgroundPath = await ImageDownloader.DownloadAsync(BackgroundUrl(game.AppId),token); }
-        catch (Exception ex) when (ex is not OperationCanceledException) { }
+        item.LogoPath = await GetArtworkAsync(game.AppId, false, token, progress);
+        item.BackgroundPath = await GetArtworkAsync(game.AppId, true, token, progress);
         return item;
+    }
+    internal static async Task<string?> GetArtworkAsync(uint id, bool hero, CancellationToken token, IProgress<string>? progress = null,
+        Func<string,string,CancellationToken,Task<string>>? download = null, string? directory = null)
+    {
+        string stem = $"steam_{id}_{(hero ? "hero" : "logo")}";
+        directory ??= ImageDownloader.ImagesDirectory;
+        foreach (string extension in new[] { ".jpg", ".png", ".webp", ".gif", ".bmp", ".ico" })
+        {
+            string cached = Path.Combine(directory,stem+extension);
+            if (!File.Exists(cached)) continue;
+            try { await Task.Run(() => ImageDownloader.ValidateImageFile(cached),token); return cached; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { /* Invalid cached files are retried, never treated as success. */ }
+        }
+        download ??= ImageDownloader.DownloadStableAsync;
+        int attempt = 0;
+        foreach (string url in ArtworkUrls(id,hero))
+        {
+            token.ThrowIfCancellationRequested();
+            progress?.Report($"Steam {id}: downloading {(hero ? "background" : "logo")} (attempt {++attempt})…");
+            try { return await download(url,stem,token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Steam artwork failed: {url}: {ex.Message}"); }
+        }
+        progress?.Report($"Steam {id}: artwork unavailable; game imported without {(hero ? "background" : "logo")}.");
+        return null;
     }
 }

@@ -15,7 +15,7 @@ public sealed class LauncherSettingsService
         {
             var settings = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(_path),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            if (settings.CarouselStyle != "FixedAnchor") settings.CarouselStyle = "Loop";
+            settings.CarouselStyle = settings.CarouselStyle is "FixedAnchor" or "Fixed Anchor" ? "FixedAnchor" : "Loop";
             return settings;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return new(); }

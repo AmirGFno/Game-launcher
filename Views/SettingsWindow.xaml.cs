@@ -23,7 +23,7 @@ public partial class SettingsWindow : Window
     }
     private async void ClearArtwork_Click(object sender,RoutedEventArgs e)
     {
-        if (System.Windows.MessageBox.Show(this,"Delete downloaded logos and backgrounds from GFno's Images and Icons folders? Games remain in your library; deleted artwork must be downloaded again. Custom files outside those folders are untouched.","Clear artwork",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) return;
+        if (System.Windows.MessageBox.Show(this,"Delete tracked artwork downloads? Your library and manually added artwork are kept. Deleted downloads must be downloaded again.","Clear artwork",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes) return;
         var button=(System.Windows.Controls.Button)sender; button.IsEnabled=false;
         try { var result=await new ArtworkCacheService().ClearAsync(); ArtworkCleared=true; Result.Text=$"Deleted {result.Deleted} files; skipped {result.Skipped}."; }
         catch(Exception ex) { Result.Text=ex.Message; }

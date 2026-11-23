@@ -17,8 +17,11 @@ public sealed class ArtworkCacheService
             {
                 string extension = Path.GetExtension(file).ToLowerInvariant();
                 if (extension is not (".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".gif" or ".ico")) continue;
+                // Only downloader-owned files. Manually added artwork (even inside Images) has no marker.
+                string marker = file + ".downloaded";
+                if (!File.Exists(marker) || !PathSafety.IsSafeToDelete(marker, root)) continue;
                 if (!PathSafety.IsSafeToDelete(file,root)) { skipped++; continue; }
-                try { File.Delete(file); deleted++; }
+                try { File.Delete(file); File.Delete(marker); GameLauncher.Converters.ImageLoader.Invalidate(file); deleted++; }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { skipped++; }
             }
         }

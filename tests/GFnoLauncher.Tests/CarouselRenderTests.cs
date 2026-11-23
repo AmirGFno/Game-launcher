@@ -30,7 +30,13 @@ public class CarouselRenderTests
                     Left=-10000, Top=-10000, Content=carousel };
                 window.Show();
                 window.UpdateLayout();
-                dispatcher.BeginInvoke(new Action(() => carousel.SelectedGame=games[0]),DispatcherPriority.Loaded);
+                dispatcher.BeginInvoke(new Action(() => {
+                    carousel.SelectedGame=games[0];
+                    Assert.Equal("Game 0",carousel.DisplayedTitle);
+                    carousel.SelectedGame=games[3];
+                    Assert.Equal("Game 3",carousel.DisplayedTitle);
+                    carousel.SelectedGame=games[0];
+                }),DispatcherPriority.Loaded);
                 timer.Tick += (_, _) =>
                 {
                     timer.Stop();
@@ -39,11 +45,21 @@ public class CarouselRenderTests
                         Assert.Same(games[0],carousel.SelectedGame);
                         Assert.True(BindingOperations.IsDataBound(carousel,GameCarousel.SelectedGameProperty));
                         Assert.Same(games[0],selection.SelectedGame);
-                        var canvas=Assert.IsType<Canvas>(carousel.Content);
+                        var root=Assert.IsType<Grid>(carousel.Content);
+                        var canvas=Assert.IsType<Canvas>(root.Children[0]);
                         Assert.InRange(canvas.Children.Count,1,13);
-                        var titles=canvas.Children.OfType<Border>().Select(b => (b.Child as TextBlock)?.Text).ToArray();
-                        Assert.True(titles.Contains("Game 0"), "Rendered titles after wrap: " + string.Join(",",titles));
-                        Assert.All(canvas.Children.OfType<Grid>().SelectMany(tile => tile.Children.OfType<AsyncImage>()),image => Assert.False(image.Desaturate));
+                        Assert.Equal("Game 0",carousel.DisplayedTitle);
+                        foreach(var hit in canvas.Children.OfType<Grid>())
+                        {
+                            var art=Assert.IsType<Grid>(hit.Children[0]);
+                            Assert.Null(art.Effect);
+                            Assert.False(Assert.IsType<AsyncImage>(art.Children[1]).Desaturate);
+                        }
+                        carousel.StyleMode="FixedAnchor";
+                        Assert.Equal("Game 0",carousel.DisplayedTitle);
+                        var effects=canvas.Children.OfType<Grid>().Select(h => ((Grid)h.Children[0]).Effect).OfType<System.Windows.Media.Effects.DropShadowEffect>().ToArray();
+                        Assert.Single(effects);
+                        Assert.Equal(System.Windows.Media.Colors.White,effects[0].Color);
                         completed.TrySetResult(true);
                     }
                     catch(Exception ex) { completed.TrySetException(ex); }

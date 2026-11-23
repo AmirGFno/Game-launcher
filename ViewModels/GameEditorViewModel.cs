@@ -232,8 +232,10 @@ public sealed class GameEditorViewModel : ObservableObject
     {
         try
         {
+            Error = "Downloading artwork…";
             string savedPath = await ImageDownloader.DownloadAsync(url, cancellationToken).ConfigureAwait(true);
             setPath(savedPath);
+            Error = "Artwork downloaded and validated.";
         }
         catch (OperationCanceledException)
         {
@@ -241,6 +243,7 @@ public sealed class GameEditorViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            Error = "Download failed: " + ex.Message;
             _dialog.ShowError("Download failed", ex.Message);
         }
     }

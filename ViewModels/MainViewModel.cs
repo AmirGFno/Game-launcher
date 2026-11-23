@@ -228,23 +228,34 @@ public sealed class MainViewModel : ObservableObject
         {
             var scanner=new SteamScannerService();
             var found=await Task.Run(scanner.Scan,token);
-            int count=0;
+            int count=0, missingArtwork=0, repaired=0;
             foreach(var steam in found)
             {
                 token.ThrowIfCancellationRequested();
-                if(Games.Any(g => string.Equals(g.LaunchTarget,$"steam://rungameid/{steam.AppId}",StringComparison.OrdinalIgnoreCase))) continue;
+                var existing = Games.FirstOrDefault(g => SteamScannerService.AppIdFromTarget(g.LaunchTarget) == steam.AppId);
+                if (existing is not null && System.IO.File.Exists(existing.LogoPath) && System.IO.File.Exists(existing.BackgroundPath)) continue;
                 StatusMessage=$"Importing {steam.Name}…";
-                var game=await scanner.CreateAsync(steam,token);
-                Games.Add(game); count++;
+                var game=await scanner.CreateAsync(steam,token,_progress);
+                if (game.LogoPath is null || game.BackgroundPath is null) missingArtwork++;
+                if (existing is null) { Games.Add(game); count++; }
+                else
+                {
+                    if (!System.IO.File.Exists(existing.LogoPath)) existing.LogoPath = game.LogoPath;
+                    if (!System.IO.File.Exists(existing.BackgroundPath)) existing.BackgroundPath = game.BackgroundPath;
+                    repaired++;
+                }
                 SelectedGame ??= game;
                 await PersistAsync();
             }
-            _dialog.ShowInfo("Steam scan", $"Added {count} games. Existing entries were preserved. Missing artwork can be added in the editor.");
+            _dialog.ShowInfo("Steam scan", $"Added {count} games; retried artwork for {repaired} existing games. {missingArtwork} games still have unavailable artwork. Existing metadata and manual artwork were preserved.");
         }
         catch(OperationCanceledException) { }
         catch(Exception ex) { _dialog.ShowError("Steam scan failed",ex.Message); }
         finally { _steamScan=null; IsCleaning=false; StatusMessage=string.Empty; }
     }
+
+    public Func<GameItem, Task>? PrepareFullscreenLaunchAsync { get; set; }
+    public event EventHandler<bool>? FullscreenLaunchFinished;
 
     private async Task PlayAsync(CancellationToken cancellationToken)
     {
@@ -258,13 +269,18 @@ public sealed class MainViewModel : ObservableObject
         // delay - just start the process and record the launch.
         IsCleaning = true;
         StatusMessage = $"Launching {game.Title}...";
-
+        bool fullscreen = Settings.Fullscreen;
+        bool started = false;
         try
         {
+            if (fullscreen && PrepareFullscreenLaunchAsync is not null)
+                await PrepareFullscreenLaunchAsync(game);
             if (Settings.CleanCacheBeforeLaunch)
                 await _tempCleaner.CleanAsync(_progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            _launcher.Launch(game);
+            await Task.Run(() => _launcher.Launch(game), cancellationToken);
+            started = true;
+            if (fullscreen) FullscreenLaunchFinished?.Invoke(this, true);
 
             game.LastPlayed = DateTime.Now;
             game.LaunchCount++;
@@ -272,10 +288,12 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             StatusMessage = "Cancelled.";
         }
         catch (Exception ex)
         {
+            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             _dialog.ShowError("Could not launch the game", ex.Message);
         }
         finally
