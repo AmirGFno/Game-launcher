@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private readonly LauncherSettingsService _settingsService = new();
     private LauncherSettings _settings = new();
     private WindowState _beforeFullscreen;
+    private Rect _windowedBounds;
+    private bool _windowedTopmost;
     private readonly CancellationTokenSource _scanCancellation = new();
 
     public MainWindow(MainViewModel viewModel)
@@ -573,12 +575,25 @@ public partial class MainWindow : Window
         if (_settings.Fullscreen && !_fullscreenApplied)
         {
             _beforeFullscreen = WindowState;
+            _windowedBounds = WindowState == WindowState.Normal
+                ? new Rect(Left,Top,ActualWidth,ActualHeight) : RestoreBounds;
+            _windowedTopmost = Topmost;
+            var monitor = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            var dpi = VisualTreeHelper.GetDpi(this);
             WindowState = WindowState.Normal;
             ResizeMode = ResizeMode.NoResize;
-            WindowState = WindowState.Maximized;
+            Left = monitor.Bounds.Left / dpi.DpiScaleX;
+            Top = monitor.Bounds.Top / dpi.DpiScaleY;
+            Width = monitor.Bounds.Width / dpi.DpiScaleX;
+            Height = monitor.Bounds.Height / dpi.DpiScaleY;
+            Topmost = true;
         }
         else if (!_settings.Fullscreen && _fullscreenApplied)
         {
+            WindowState = WindowState.Normal;
+            Topmost = _windowedTopmost;
+            Left = _windowedBounds.Left; Top = _windowedBounds.Top;
+            Width = _windowedBounds.Width; Height = _windowedBounds.Height;
             WindowState = _beforeFullscreen;
             ResizeMode = ResizeMode.NoResize;
         }
