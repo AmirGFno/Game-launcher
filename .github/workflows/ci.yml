@@ -31,4 +31,15 @@ jobs:
           exit $code
 
       - name: Test
-        run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
+        shell: pwsh
+        run: |
+          dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal --logger "trx;LogFileName=results.trx" --results-directory TestResults 2>&1 | Tee-Object test.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content test.log | Select-String 'error |Failed|Error Message|Exception' | ForEach-Object { Write-Output "::error::$_" }
+            if (Test-Path TestResults/results.trx) {
+              [xml]$trx = Get-Content TestResults/results.trx
+              $trx.TestRun.Results.UnitTestResult | Where-Object { $_.outcome -eq 'Failed' } | ForEach-Object { Write-Output "::error::$($_.testName): $($_.Output.ErrorInfo.Message) $($_.Output.ErrorInfo.StackTrace)" }
+            }
+          }
+          exit $code
