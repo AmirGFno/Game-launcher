@@ -243,7 +243,7 @@ public static class ImageLoader
             if (new FileInfo(path).Length > 64L * 1024 * 1024) return null;
             // Sniffing is performed by ImageSharp, not the filename. A CDN may return WebP
             // behind a .jpg URL. ICO stays on the native WPF decoder.
-            BitmapImage? bitmap = IsIcon(path)
+            BitmapSource? bitmap = IsIcon(path)
                 ? DecodeWithWpf(path, maxWidth)
                 : DecodeWithImageSharp(path, maxWidth);
 
@@ -302,39 +302,36 @@ public static class ImageLoader
     /// Decodes with ImageSharp (WebP and any other format WPF cannot handle), resizing
     /// to <paramref name="maxWidth"/> first, then re-encodes to PNG in memory for WPF.
     /// </summary>
-    private static BitmapImage? DecodeWithImageSharp(string path, int maxWidth)
+    private static BitmapSource? DecodeWithImageSharp(string path, int maxWidth)
     {
-        try
+        try { return DecodeManaged(path, maxWidth); }
+        catch (Exception ex)
         {
-            var info = SixLabors.ImageSharp.Image.Identify(path);
-            GameLauncher.Services.ImageDownloader.CheckDimensions(info.Width, info.Height);
-            int limit = maxWidth > 0 ? maxWidth : MaxBackgroundWidth;
-            var options = new SixLabors.ImageSharp.Formats.DecoderOptions {
-                TargetSize = new SixLabors.ImageSharp.Size(limit, limit), MaxFrames = 1
-            };
-            using var image = SixLabors.ImageSharp.Image.Load(options, path);
-            if (image.Width > limit || image.Height > limit)
-                image.Mutate(context => context.Resize(new SixLabors.ImageSharp.Processing.ResizeOptions {
-                    Size = new SixLabors.ImageSharp.Size(limit,limit), Mode = SixLabors.ImageSharp.Processing.ResizeMode.Max
-                }));
-
-            using var stream = new MemoryStream();
-            image.Save(stream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-            stream.Position = 0;
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            // Do not upscale small images (or stretch portrait artwork) after resizing.
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            return bitmap;
-        }
-        catch
-        {
+            System.Diagnostics.Debug.WriteLine("Artwork decode failed: " + ex.Message);
             return null;
         }
+    }
+
+    // A direct pixel bridge avoids a second PNG encode/decode and WIC format negotiation.
+    // Kept internal for deterministic regression testing; public loading still returns a placeholder on failure.
+    internal static BitmapSource DecodeManaged(string path, int maxWidth)
+    {
+        var info = SixLabors.ImageSharp.Image.Identify(path);
+        GameLauncher.Services.ImageDownloader.CheckDimensions(info.Width, info.Height);
+        int limit = maxWidth > 0 ? maxWidth : MaxBackgroundWidth;
+        var options = new SixLabors.ImageSharp.Formats.DecoderOptions {
+            TargetSize = new SixLabors.ImageSharp.Size(limit, limit), MaxFrames = 1
+        };
+        using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Bgra32>(options, path);
+        if (image.Width > limit || image.Height > limit)
+            image.Mutate(context => context.Resize(new SixLabors.ImageSharp.Processing.ResizeOptions {
+                Size = new SixLabors.ImageSharp.Size(limit,limit), Mode = SixLabors.ImageSharp.Processing.ResizeMode.Max
+            }));
+        byte[] pixels = new byte[checked(image.Width * image.Height * 4)];
+        image.CopyPixelDataTo(pixels);
+        var bitmap = BitmapSource.Create(image.Width,image.Height,96,96,PixelFormats.Bgra32,null,pixels,image.Width*4);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static bool IsIcon(string path)

@@ -40,6 +40,7 @@ public sealed class ArtworkPipelineTests : IDisposable
         Assert.EndsWith(webp ? ".webp" : ".png",path);
         Assert.True(File.Exists(path+".downloaded"));
         Assert.Empty(Directory.GetFiles(_root,"*.part"));
+        Assert.NotNull(await Task.Run(() => ImageLoader.DecodeManaged(path,32)));
         var bitmap=await ImageLoader.LoadAsync(path,32);
         Assert.NotNull(bitmap); Assert.True(bitmap.IsFrozen); Assert.InRange(bitmap.PixelWidth,1,32);
         // Content detection must still work if a manually added WebP has the wrong suffix.
