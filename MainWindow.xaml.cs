@@ -86,7 +86,6 @@ public partial class MainWindow : Window
         }
 
         UpdateMaximizeIcon();
-        _spinnerTimer.Start();
         EnsureTrayIcon();
         ApplySettings();
     }
@@ -126,6 +125,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.IsCleaning))
+        {
+            if (_viewModel.IsCleaning && !_fullscreenLaunching) _spinnerTimer.Start();
+            else _spinnerTimer.Stop();
+        }
         if (e.PropertyName != nameof(MainViewModel.SelectedGame))
         {
             return;
@@ -299,6 +303,7 @@ public partial class MainWindow : Window
 
     internal void ShowFromTray()
     {
+        if (_fullscreenLaunching) { Show(); return; }
         RestoreLaunchChrome();
         Show();
         WindowState = WindowState.Normal;
@@ -640,7 +645,12 @@ public partial class MainWindow : Window
         if (System.Windows.MessageBox.Show(this,"Scan local Steam libraries and add missing games? Artwork is downloaded from Steam's CDN; existing entries are unchanged.","Steam scan",MessageBoxButton.YesNo)!=MessageBoxResult.Yes) return;
         SteamButton.IsEnabled=false;
         try { await _viewModel.ImportSteamAsync(_scanCancellation.Token); }
-        finally { SteamButton.IsEnabled=true; }
+        finally
+        {
+            SteamButton.IsEnabled=true;
+            Carousel.RefreshArtwork();
+            await CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        }
     }
 
     private void TrackFullscreenEdges(object sender, System.Windows.Input.MouseEventArgs e)
@@ -671,6 +681,7 @@ public partial class MainWindow : Window
     private async Task PrepareFullscreenLaunchAsync(GameItem game)
     {
         _fullscreenLaunching = true;
+        _spinnerTimer.Stop();
         ChromeRoot.Visibility = Visibility.Hidden;
         IsEnabled = false;
         Topmost = false; // Never pin the launcher above the game taking focus.

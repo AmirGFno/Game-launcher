@@ -238,8 +238,7 @@ public static class ImageLoader
                 return null;
             }
 
-            // WebP is not supported by WPF; everything else goes through WPF, with
-            // ImageSharp as a safety net for formats WPF refuses.
+            // Content-based decoding keeps downloaded and manually renamed WebP consistent.
             if (new FileInfo(path).Length > 64L * 1024 * 1024) return null;
             // Sniffing is performed by ImageSharp, not the filename. A CDN may return WebP
             // behind a .jpg URL. ICO stays on the native WPF decoder.
@@ -299,8 +298,8 @@ public static class ImageLoader
     }
 
     /// <summary>
-    /// Decodes with ImageSharp (WebP and any other format WPF cannot handle), resizing
-    /// to <paramref name="maxWidth"/> first, then re-encodes to PNG in memory for WPF.
+    /// Decodes content with ImageSharp and bridges resized BGRA pixels to a frozen WPF bitmap.
+    /// The longest output edge is bounded by <paramref name="maxWidth"/>.
     /// </summary>
     private static BitmapSource? DecodeWithImageSharp(string path, int maxWidth)
     {

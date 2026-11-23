@@ -87,7 +87,7 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
         _selected = index;
         double size = Fixed ? FixedTileSize : LoopTileSize;
         double pitch = size + (Fixed ? FixedGap : LoopGap);
-        int visible = Fixed ? (int)Math.Ceiling(ActualWidth / pitch) + 2 : Math.Max(1, Math.Min(_items.Count, (int)(ActualWidth / pitch) - 1));
+        int visible = Fixed ? (int)Math.Ceiling(ActualWidth / pitch) + 2 : Math.Max(3, Math.Min(_items.Count, (int)(ActualWidth / pitch) - 1));
         double anchor = Fixed ? ActualWidth / 2 - size / 2 : 2 * pitch;
         // Reserve a complete slot on the right; the mask applies only to artwork, never to the title.
         double viewport = Fixed ? ActualWidth : Math.Min(ActualWidth - pitch, visible * pitch);

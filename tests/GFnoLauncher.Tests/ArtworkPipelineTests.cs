@@ -88,5 +88,19 @@ public sealed class ArtworkPipelineTests : IDisposable
         Assert.Equal(9,calls);
         Assert.Equal(570u,SteamScannerService.AppIdFromTarget("steam://run/570"));
     }
+    [Fact]
+    public async Task CacheClearKeepsManualArtworkAndLibrary()
+    {
+        string images=Path.Combine(_root,"Images"); Directory.CreateDirectory(images);
+        string manual=Path.Combine(images,"manual.png"), owned=Path.Combine(images,"steam_570_logo.png");
+        await File.WriteAllBytesAsync(manual,ImageBytes(false));
+        await File.WriteAllBytesAsync(owned,ImageBytes(false));
+        await File.WriteAllTextAsync(owned+".downloaded","GFno downloaded artwork");
+        await File.WriteAllTextAsync(Path.Combine(_root,"library.json"),"[]");
+        var result=await new ArtworkCacheService(_root).ClearAsync();
+        Assert.Equal(1,result.Deleted);
+        Assert.True(File.Exists(manual)); Assert.True(File.Exists(Path.Combine(_root,"library.json")));
+        Assert.False(File.Exists(owned));
+    }
     public void Dispose() => Directory.Delete(_root,true);
 }

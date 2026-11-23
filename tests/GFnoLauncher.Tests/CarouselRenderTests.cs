@@ -60,6 +60,10 @@ public class CarouselRenderTests
                         var effects=canvas.Children.OfType<Grid>().Select(h => ((Grid)h.Children[0]).Effect).OfType<System.Windows.Media.Effects.DropShadowEffect>().ToArray();
                         Assert.Single(effects);
                         Assert.Equal(System.Windows.Media.Colors.White,effects[0].Color);
+                        carousel.StyleMode="Loop";
+                        carousel.Games=new[] { games[0] };
+                        Assert.True(canvas.Width >= 3 * (GameCarousel.LoopTileSize + GameCarousel.LoopGap));
+                        Assert.Equal("Game 0",carousel.DisplayedTitle);
                         completed.TrySetResult(true);
                     }
                     catch(Exception ex) { completed.TrySetException(ex); }

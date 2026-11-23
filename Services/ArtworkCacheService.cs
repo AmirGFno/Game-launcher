@@ -5,9 +5,12 @@ namespace GameLauncher.Services;
 /// <summary>Only immediate, app-generated image files; never recursive, never custom artwork.</summary>
 public sealed class ArtworkCacheService
 {
+    private readonly string _appRoot;
+    public ArtworkCacheService() : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"GameLauncher")) { }
+    internal ArtworkCacheService(string appRoot) => _appRoot = PathSafety.EnsureSafeRoot(appRoot);
     public Task<(int Deleted, int Skipped)> ClearAsync() => Task.Run(() =>
     {
-        string appRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"GameLauncher");
+        string appRoot = _appRoot;
         PathSafety.EnsureSafeRoot(appRoot);
         int deleted=0, skipped=0;
         foreach (string name in new[] { "Images", "Icons" })
