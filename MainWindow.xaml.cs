@@ -12,7 +12,6 @@ using GameLauncher.Converters;
 using GameLauncher.Models;
 using GameLauncher.ViewModels;
 using GameLauncher.Services;
-using GameLauncher.Models;
 using GameLauncher.Views;
 
 namespace GameLauncher;

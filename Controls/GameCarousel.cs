@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using GameLauncher.Models;
+using FontFamily = System.Windows.Media.FontFamily;
 using Point = System.Windows.Point;
 using Brushes = System.Windows.Media.Brushes;
 using Brush = System.Windows.Media.Brush;

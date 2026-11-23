@@ -241,58 +241,30 @@ jobs:
             GFnoLauncher-Setup-2.1.2.exe
             SHA256SUMS.txt
           body: |
-            ## Highlights
+            ## Native WPF carousel and settings
 
-            GFno Launcher 2.1.2 is the first stable release: a dark, PS5-inspired Windows desktop game launcher built with C# / WPF on .NET 10.
+            C#/.NET 10 and WPF throughout. No React, WebView2, Node.js or local web server.
 
-            - Point it at a game `.exe` or a Steam URL and it reads the title and logo straight out of the executable.
-            - Horizontal logo carousel with a Ken Burns background, cross-fading artwork and a glow tinted from each logo's dominant colour.
-            - Artwork can be downloaded from a direct URL or picked from a local file, and is decoded off the UI thread.
-            - WebP artwork is supported through a bundled, pure-managed image decoder.
-            - Single instance, system tray, reorder mode, and an editor that preserves every metadata field.
+            - Full-color rounded tiles with an enlarged, glowing selection and faded edges.
+            - Recycled carousel slots animate through the last/first seam when there are more than five games.
+            - Switch between centered Loop and left Fixed Anchor in Settings.
+            - Animated title with a vertical indicator beside the selected tile area.
+            - Bottom-left Settings: fullscreen (F11), optional app-cache-only pre-launch cleanup,
+              confirmed downloaded-artwork clearing, Close to Tray or Quit on Close.
+            - Settings persist in %LOCALAPPDATA%\GameLauncher\settings.json.
+            - Top-right Steam scan reads local library manifests, preserves existing entries, and downloads
+              library_600x900.jpg and library_hero.jpg from Steam's CDN. Offline imports retain the game without artwork.
+            - Retains WPF async image-loading, launch validation, metadata preservation and tray activation fixes.
 
-            ## Security and reliability
+            ## Safety and verification
 
-            - **Runs as a standard user.** The application manifest requests `asInvoker` and the installer uses `PrivilegesRequired=lowest` - no UAC prompt and no mandatory Administrator execution.
-            - **Filesystem safety before anything is deleted.** Every path is expanded with `Path.GetFullPath` and must lie strictly inside the application-owned cache folder. Drive roots, junctions / symbolic links and protected system or personal folders are rejected.
-            - **Cleanup is optional and scoped.** Only `%LocalAppData%\GameLauncher\Cache` can ever be cleaned, and only after a preview and an explicit confirmation. The operation is cancellable and locked files are skipped. `%TEMP%`, `C:\Windows\Temp` and per-game folders are never touched.
-            - **Crash-safe library persistence.** `library.json` is written to a temporary file, flushed and swapped in atomically, keeping a `.bak` copy of the previous file. Writers are serialised so concurrent saves cannot interleave, and a corrupted file is moved aside (never deleted) so the library stays recoverable.
-            - **Validated downloads.** Image downloads are capped at 25 MB, streamed to a temporary file, checked as real decodable images with sane dimensions, and incomplete files are removed.
-            - **Restricted launch targets.** Only an explicit allowlist of store protocols (Steam, Epic, Ubisoft, Origin, Battle.net, GOG Galaxy) plus `.exe` paths. Arbitrary URI schemes are rejected.
-            - **Dependency status.** `SixLabors.ImageSharp` stays at 3.1.12 deliberately. 3.2.0 is the first 3.x release that patches the published ImageSharp advisories (TIFF fax/CCITT encoder and decoder out-of-bounds writes, `HistogramEqualization` index validation, ICC CLUT allocation, BigTIFF decoder loop), but it also adds build-time license enforcement that requires a paid Six Labors license key, which this free project cannot satisfy. Moving to 3.2.0 is therefore deferred until a license is available; the code compiles and runs against the 3.x API either way.
+            Pre-launch cleanup defaults OFF and never touches Windows Temp, game folders or personal folders.
+            Artwork clearing is nonrecursive and restricted to GFno's Images and Icons folders after confirmation.
+            Windows CI runs backend tests and packages the installer and portable ZIP. Native interactive UI
+            and live Steam CDN testing have not been performed in the sandbox. ImageSharp remains at 3.1.12
+            with documented advisories; avoid untrusted artwork.
 
-            ## Performance and stability
+            ## Version
 
-            - Artwork is decoded on a worker thread and downscaled while decoding (maximum 1920 px backgrounds, 256 px logos), so a multi-megapixel wallpaper never freezes the interface or sits in memory at full resolution.
-            - Decoded bitmaps are cached with a 256 MB budget and least-recently-used eviction, keyed by the source file's write time and size, so a changed file is re-decoded instead of showing a stale image forever.
-            - Dominant-colour sampling runs off the UI thread and is cached per logo.
-            - Every decoded bitmap is frozen before it is bound, so it can cross threads safely.
-
-            ## Bug fixes
-
-            - The application project no longer compiles the unit-test sources (the root `GameLauncher.csproj` sat inside the SDK's default `**/*.cs` glob), which is what broke CI and blocked the earlier beta release.
-            - The ImageSharp fallback decode path again resolves `Mutate` / `Resize` (they are extension methods in `SixLabors.ImageSharp.Processing`).
-            - Path safety no longer treats a path that does not exist as a reparse point. That previously made the cache cleaner reject a not-yet-created cache directory, which would have thrown on first run.
-            - Saving an existing game clones the stored item, so `LastPlayed`, launch count, favourites, categories and the cached dominant colour survive an edit.
-            - The unit tests import `System.IO` explicitly instead of relying on implicit usings.
-
-            ## Downloads
-
-            | Package | File |
-            | --- | --- |
-            | Windows x64 portable (self-contained) | `GFnoLauncher-2.1.2-win-x64-portable.zip` |
-            | Windows x64 installer | `GFnoLauncher-Setup-2.1.2.exe` |
-
-            `SHA256SUMS.txt` is attached to this release and lists the SHA-256 digest of both packages.
-
-            The portable ZIP is a single self-contained executable: it needs no local .NET installation and no development server. The installer installs to `%ProgramFiles%\GFno Launcher`, creates a Start Menu shortcut, offers an optional desktop shortcut and does not require Administrator rights.
-
-            ## Compatibility
-
-            - Windows 10 / 11, 64-bit.
-            - No .NET runtime installation required: both packages are self-contained for `win-x64`.
-            - User data lives in `%LocalAppData%\GameLauncher` and is never modified by installation or uninstallation. An existing `library.json` from an earlier version loads unchanged.
-
-            ## Note
-
-            This release keeps the current WPF interface. The React / TypeScript / WebView2 frontend and the performance-features phase are planned for a later increment and are **not** part of this release.
+            Published as v2.1.2 because the earlier v2.1.0 tag already exists and must not be overwritten.
+            Existing release tags and user library files are preserved.
