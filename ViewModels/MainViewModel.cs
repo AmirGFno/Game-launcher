@@ -217,7 +217,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public async Task ImportSteamAsync(CancellationToken token)
+    public async Task ImportSteamAsync(CancellationToken token, string? manualRoot = null)
     {
         if (IsCleaning) return;
         IsCleaning=true;
@@ -227,7 +227,7 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var scanner=new SteamScannerService();
-            var found=await Task.Run(scanner.Scan,token);
+            var found=await Task.Run(() => scanner.Scan(manualRoot),token);
             int count=0, missingArtwork=0, repaired=0;
             foreach(var steam in found)
             {

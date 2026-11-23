@@ -28,10 +28,13 @@ public sealed class SteamScannerService
         return result;
     }
     private static string Value(string text,string key) => Regex.Match(text, "\"" + key + "\"\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).Groups[1].Value;
-    public IReadOnlyList<SteamGame> Scan()
+    public IReadOnlyList<SteamGame> Scan(string? manualRoot = null)
     {
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
-        string root = key?.GetValue("SteamPath") as string ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),"Steam");
+        string root = manualRoot ?? key?.GetValue("SteamPath") as string ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),"Steam");
+        root = Path.GetFullPath(root);
+        if (string.Equals(Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), "steamapps", StringComparison.OrdinalIgnoreCase))
+            root = Directory.GetParent(root.TrimEnd(Path.DirectorySeparatorChar))!.FullName;
         var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { root };
         string libraries = Path.Combine(root,"steamapps","libraryfolders.vdf");
         if (File.Exists(libraries) && new FileInfo(libraries).Length < 4*1024*1024)

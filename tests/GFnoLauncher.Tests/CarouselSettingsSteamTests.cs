@@ -61,5 +61,19 @@ public sealed class CarouselSettingsSteamTests : IDisposable
         Assert.Equal("https://cdn.cloudflare.steamstatic.com/steam/apps/570/library_600x900.jpg",SteamScannerService.LogoUrl(game.AppId));
         Assert.Equal("https://cdn.cloudflare.steamstatic.com/steam/apps/570/library_hero.jpg",SteamScannerService.BackgroundUrl(game.AppId));
     }
+    [Fact]
+    public void ManualSteamRootReadsLibrariesAndDeduplicatesAppIds()
+    {
+        string apps = Path.Combine(_root, "steamapps");
+        string other = Path.Combine(_root, "other");
+        Directory.CreateDirectory(apps);
+        Directory.CreateDirectory(Path.Combine(other, "steamapps"));
+        string manifest = "\"appid\" \"570\" \"name\" \"Dota 2\"";
+        File.WriteAllText(Path.Combine(apps, "appmanifest_570.acf"), manifest);
+        File.WriteAllText(Path.Combine(other, "steamapps", "appmanifest_570.acf"), manifest);
+        File.WriteAllText(Path.Combine(apps, "libraryfolders.vdf"), "\"path\" \"" + other.Replace("\\", "\\\\") + "\"");
+        Assert.Equal(570u, Assert.Single(new SteamScannerService().Scan(_root)).AppId);
+        Assert.Equal(570u, Assert.Single(new SteamScannerService().Scan(apps)).AppId);
+    }
     public void Dispose() => Directory.Delete(_root,true);
 }

@@ -642,9 +642,19 @@ public partial class MainWindow : Window
     private async void SteamScan_Click(object sender,RoutedEventArgs e)
     {
         if (_viewModel.IsCleaning) return;
-        if (System.Windows.MessageBox.Show(this,"Scan local Steam libraries and add missing games? Artwork is downloaded from Steam's CDN; existing entries are unchanged.","Steam scan",MessageBoxButton.YesNo)!=MessageBoxResult.Yes) return;
+        var choice = System.Windows.MessageBox.Show(this,
+            "Scan Steam libraries and add missing games? Existing metadata is preserved and missing artwork is retried.\n\nYes: detect Steam automatically\nNo: choose a Steam or library folder\nCancel: do not scan",
+            "Steam scan", MessageBoxButton.YesNoCancel);
+        if (choice == MessageBoxResult.Cancel) return;
+        string? manualRoot = null;
+        if (choice == MessageBoxResult.No)
+        {
+            var picker = new Microsoft.Win32.OpenFolderDialog { Title = "Choose Steam, a Steam library, or steamapps folder" };
+            if (picker.ShowDialog(this) != true) return;
+            manualRoot = picker.FolderName;
+        }
         SteamButton.IsEnabled=false;
-        try { await _viewModel.ImportSteamAsync(_scanCancellation.Token); }
+        try { await _viewModel.ImportSteamAsync(_scanCancellation.Token, manualRoot); }
         finally
         {
             SteamButton.IsEnabled=true;

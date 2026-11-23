@@ -43,3 +43,13 @@ jobs:
             }
           }
           exit $code
+
+      - name: Test summary
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path TestResults/results.trx) {
+            [xml]$trx = Get-Content TestResults/results.trx
+            $c = $trx.TestRun.ResultSummary.Counters
+            Write-Output "::notice::Tests: total=$($c.total), passed=$($c.passed), failed=$($c.failed)"
+          }
