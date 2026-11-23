@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 using GameLauncher.Converters;
 using GameLauncher.Models;
 using GameLauncher.ViewModels;
+using GameLauncher.Services;
+using GameLauncher.Models;
+using GameLauncher.Views;
 
 namespace GameLauncher;
 
@@ -32,6 +35,10 @@ public partial class MainWindow : Window
     // System-tray icon: closing the window hides it instead of quitting.
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _isQuitting;
+    private readonly LauncherSettingsService _settingsService = new();
+    private LauncherSettings _settings = new();
+    private WindowState _beforeFullscreen;
+    private readonly CancellationTokenSource _scanCancellation = new();
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -39,6 +46,9 @@ public partial class MainWindow : Window
 
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = viewModel;
+        _settings = _settingsService.Load();
+        _viewModel.Settings = _settings;
+        Carousel.LaunchRequested += (_, _) => { if (!_viewModel.IsReordering) _viewModel.PlayCommand.Execute(null); };
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -69,12 +79,14 @@ public partial class MainWindow : Window
         UpdateMaximizeIcon();
         _spinnerTimer.Start();
         EnsureTrayIcon();
+        ApplySettings();
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _spinnerTimer.Stop();
+        _scanCancellation.Cancel();
         DisposeTrayIcon();
     }
 
@@ -84,7 +96,7 @@ public partial class MainWindow : Window
         // Only the tray's "Quit" entry (or a real shutdown) ends the process.
         // Without a tray icon there would be no way back, so fall back to a real
         // close in that (unlikely) case.
-        if (!_isQuitting && _trayIcon is not null)
+        if (!_isQuitting && _settings.CloseToTray && _trayIcon is not null)
         {
             e.Cancel = true;
             Hide();
@@ -112,7 +124,7 @@ public partial class MainWindow : Window
 
         if (_viewModel.SelectedGame is not null)
         {
-            GamesListBox.ScrollIntoView(_viewModel.SelectedGame);
+            // GameCarousel owns animated positioning; never ScrollIntoView across a wrap.
         }
     }
 
@@ -267,7 +279,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowFromTray()
+    internal void ShowFromTray()
     {
         Show();
         WindowState = WindowState.Normal;
@@ -343,38 +355,7 @@ public partial class MainWindow : Window
     /// Starts from the values a previous animation reached, so interrupting it mid-way
     /// does not make the title jump.
     /// </summary>
-    private void AnimateTitle()
-    {
-        double opacityFrom = TitlePanel.Opacity;
-
-        TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
-        TitlePanel.Opacity = opacityFrom;
-
-        var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        double offsetFrom = transform.Y;
-        transform.Y = offsetFrom;
-        TitlePanel.RenderTransform = transform;
-
-        var storyboard = new Storyboard();
-
-        var fade = new DoubleAnimation(opacityFrom, 1, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(fade, TitlePanel);
-        Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
-
-        var slide = new DoubleAnimation(offsetFrom, 0, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(slide, TitlePanel);
-        Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
-
-        storyboard.Children.Add(fade);
-        storyboard.Children.Add(slide);
-        storyboard.Begin();
-    }
+    private void AnimateTitle() { /* The selected tile's title is animated inside GameCarousel. */ }
 
     #endregion
 
@@ -389,6 +370,12 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.F11:
+                _settings.Fullscreen = !_settings.Fullscreen;
+                ApplySettings();
+                try { _settingsService.Save(_settings); } catch (Exception ex) { System.Windows.MessageBox.Show(ex.Message); }
+                e.Handled = true;
+                break;
             case Key.Right:
                 if (_viewModel.IsReordering)
                 {
@@ -579,4 +566,45 @@ public partial class MainWindow : Window
     }
 
     #endregion
+    private bool _fullscreenApplied;
+    private void ApplySettings()
+    {
+        _viewModel.Settings = _settings;
+        Carousel.StyleMode = _settings.CarouselStyle;
+        if (_settings.Fullscreen && !_fullscreenApplied)
+        {
+            _beforeFullscreen = WindowState;
+            WindowState = WindowState.Normal;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+        }
+        else if (!_settings.Fullscreen && _fullscreenApplied)
+        {
+            WindowState = _beforeFullscreen;
+            ResizeMode = ResizeMode.NoResize;
+        }
+        _fullscreenApplied = _settings.Fullscreen;
+        HeaderBar.Visibility = _settings.Fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        HeaderRow.Height = new GridLength(_settings.Fullscreen ? 0 : 64);
+    }
+    private void Settings_Click(object sender,RoutedEventArgs e)
+    {
+        if (_viewModel.IsCleaning) return;
+        var dialog = new SettingsWindow(_settings,_settingsService) { Owner=this };
+        if (dialog.ShowDialog()==true) { _settings=dialog.Settings; ApplySettings(); }
+        if (dialog.ArtworkCleared)
+        {
+            Carousel.Games=null; Carousel.Games=_viewModel.Games;
+            _ = CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        }
+    }
+    private async void SteamScan_Click(object sender,RoutedEventArgs e)
+    {
+        if (_viewModel.IsCleaning) return;
+        if (System.Windows.MessageBox.Show(this,"Scan local Steam libraries and add missing games? Artwork is downloaded from Steam's CDN; existing entries are unchanged.","Steam scan",MessageBoxButton.YesNo)!=MessageBoxResult.Yes) return;
+        SteamButton.IsEnabled=false;
+        try { await _viewModel.ImportSteamAsync(_scanCancellation.Token); }
+        finally { SteamButton.IsEnabled=true; }
+    }
+
 }

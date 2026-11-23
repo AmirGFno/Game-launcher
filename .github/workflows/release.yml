@@ -231,19 +231,19 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          name: "GFno Launcher 2.0.0"
+          name: "GFno Launcher 2.1.2"
           draft: false
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
           files: |
-            GFnoLauncher-2.0.0-win-x64-portable.zip
-            GFnoLauncher-Setup-2.0.0.exe
+            GFnoLauncher-2.1.2-win-x64-portable.zip
+            GFnoLauncher-Setup-2.1.2.exe
             SHA256SUMS.txt
           body: |
             ## Highlights
 
-            GFno Launcher 2.0.0 is the first stable release: a dark, PS5-inspired Windows desktop game launcher built with C# / WPF on .NET 10.
+            GFno Launcher 2.1.2 is the first stable release: a dark, PS5-inspired Windows desktop game launcher built with C# / WPF on .NET 10.
 
             - Point it at a game `.exe` or a Steam URL and it reads the title and logo straight out of the executable.
             - Horizontal logo carousel with a Ken Burns background, cross-fading artwork and a glow tinted from each logo's dominant colour.
@@ -280,8 +280,8 @@ jobs:
 
             | Package | File |
             | --- | --- |
-            | Windows x64 portable (self-contained) | `GFnoLauncher-2.0.0-win-x64-portable.zip` |
-            | Windows x64 installer | `GFnoLauncher-Setup-2.0.0.exe` |
+            | Windows x64 portable (self-contained) | `GFnoLauncher-2.1.2-win-x64-portable.zip` |
+            | Windows x64 installer | `GFnoLauncher-Setup-2.1.2.exe` |
 
             `SHA256SUMS.txt` is attached to this release and lists the SHA-256 digest of both packages.
 

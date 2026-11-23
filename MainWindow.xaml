@@ -87,12 +87,12 @@
         <!-- ============ Layer 4: all UI ============ -->
         <Grid Panel.ZIndex="4">
             <Grid.RowDefinitions>
-                <RowDefinition Height="64" />
+                <RowDefinition x:Name="HeaderRow" Height="64" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <!-- ============ Header / custom title bar: cinematic fade, no glass ============ -->
-            <Grid Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <Grid x:Name="HeaderBar" Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                         <GradientStop Color="#990B0E14" Offset="0" />
@@ -114,6 +114,9 @@
                 <!-- Add (left of the window controls) + Min / Max / Close -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                             HorizontalAlignment="Right" Margin="0,0,20,0">
+                    <Button x:Name="SteamButton" Style="{StaticResource ActionButtonStyle}" ToolTip="Scan installed Steam games" Click="SteamScan_Click" Margin="0,0,12,0">
+                        <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White"/>
+                    </Button>
                     <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Add game"
                             Command="{Binding AddGameCommand}" Margin="0,0,20,0">
                         <Path Data="M7,3 H9 V7 H13 V9 H9 V13 H7 V9 H3 V7 H7 Z" Fill="#FFFFFFFF"
@@ -139,11 +142,11 @@
             </Grid>
 
             <!-- ============ Main ============ -->
-            <Grid Grid.Row="1" Margin="56,0,56,100">
+            <Grid Grid.Row="1" Margin="0,0,0,100">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="230" />
+                    <RowDefinition Height="290" />
                 </Grid.RowDefinitions>
 
                 <!-- Empty state -->
@@ -162,145 +165,9 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Title, right above the carousel -->
-                <StackPanel x:Name="TitlePanel"
-                            Grid.Row="1"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="0,0,0,4"
-                            Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <StackPanel.RenderTransform>
-                        <TranslateTransform Y="14" />
-                    </StackPanel.RenderTransform>
-                    <TextBlock Text="{Binding SelectedGame.Title}"
-                               FontSize="22" FontWeight="SemiBold" Foreground="White"
-                               HorizontalAlignment="Center" TextAlignment="Center"
-                               MaxWidth="900" TextWrapping="Wrap">
-                        <TextBlock.Effect>
-                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="Black" Opacity="0.8" />
-                        </TextBlock.Effect>
-                    </TextBlock>
-                </StackPanel>
-
-                <!-- ============ Carousel of game logos ============ -->
-                <Grid Grid.Row="2" VerticalAlignment="Bottom">
-                    <ListBox x:Name="GamesListBox"
-                             ItemsSource="{Binding Games}"
-                             SelectedItem="{Binding SelectedGame, Mode=TwoWay}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Padding="0"
-                             FocusVisualStyle="{x:Null}"
-                             ClipToBounds="False"
-                             ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             ScrollViewer.CanContentScroll="False"
-                             PreviewMouseWheel="GamesListBox_PreviewMouseWheel">
-
-                        <!-- ScrollViewer must not clip the scaled-up selected tile. -->
-                        <ListBox.Template>
-                            <ControlTemplate TargetType="ListBox">
-                                <Border Background="{TemplateBinding Background}"
-                                        BorderBrush="Transparent"
-                                        BorderThickness="0"
-                                        Padding="0"
-                                        ClipToBounds="False">
-                                    <ScrollViewer ClipToBounds="False"
-                                                  Focusable="False"
-                                                  HorizontalScrollBarVisibility="Hidden"
-                                                  VerticalScrollBarVisibility="Disabled"
-                                                  CanContentScroll="False">
-                                        <ItemsPresenter />
-                                    </ScrollViewer>
-                                </Border>
-                            </ControlTemplate>
-                        </ListBox.Template>
-
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <!-- Plain horizontal stack: the ListBoxItem margins provide
-                                     the spacing. ClipToBounds=False so the scaled-up
-                                     selected logo is never cut off. -->
-                                <StackPanel Orientation="Horizontal" ClipToBounds="False" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <!-- Fixed 140x140 tile; 15px on each side gives a stable
-                                     170px pitch and keeps the horizontal flow intact. -->
-                                <Setter Property="Width" Value="140" />
-                                <Setter Property="Height" Value="140" />
-                                <Setter Property="Margin" Value="15,0,15,0" />
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="BorderThickness" Value="0" />
-                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                <Setter Property="VerticalAlignment" Value="Center" />
-                                <Setter Property="ClipToBounds" Value="False" />
-                                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-                                <Setter Property="Opacity" Value="0.6" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListBoxItem">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center" />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <!-- The selected tile renders above its neighbours. -->
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Panel.ZIndex" Value="1" />
-                                        <Setter Property="Opacity" Value="1" />
-                                    </Trigger>
-                                    <Trigger Property="IsSelected" Value="False">
-                                        <Setter Property="Panel.ZIndex" Value="0" />
-                                    </Trigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Opacity" Value="0.9" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <!-- Raw image, no border / box. Rounded through Image.Clip.
-                                     The tile is 140x140 and the logo inside is scaled with
-                                     a RenderTransform, so scaling never shifts the row. -->
-                                <Grid Width="140" Height="140"
-                                      ClipToBounds="False"
-                                      ToolTip="{Binding Title}"
-                                      PreviewMouseLeftButtonDown="GameTile_PreviewMouseLeftButtonDown">
-                                    <controls:AsyncImage Style="{StaticResource CarouselImageStyle}"
-                                                         Path="{Binding LogoPath}"
-                                                         DecodeWidth="256"
-                                                         ClipToBounds="False">
-                                        <controls:AsyncImage.Clip>
-                                            <RectangleGeometry Rect="0,0,120,120" RadiusX="12" RadiusY="12" />
-                                        </controls:AsyncImage.Clip>
-                                        <!-- Soft glow tinted with the logo's dominant colour
-                                             (ImageColorExtractor); pulses while selected. -->
-                                        <controls:AsyncImage.Effect>
-                                            <DropShadowEffect BlurRadius="28" ShadowDepth="0"
-                                                              Color="{Binding DominantColorValue}"
-                                                              Opacity="0" />
-                                        </controls:AsyncImage.Effect>
-                                    </controls:AsyncImage>
-
-                                    <!-- Fallback glyph when the game has no logo -->
-                                    <Grid Width="56" Height="56"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                          Visibility="{Binding LogoPath, Converter={StaticResource EmptyStringToVisibilityConverter}}">
-                                        <Ellipse Stroke="#FF3A4763" StrokeThickness="2" Fill="Transparent" />
-                                        <Path Data="M22,16 L40,28 L22,40 Z" Fill="#FF3A4763" />
-                                    </Grid>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
+                <controls:GameCarousel x:Name="Carousel" Grid.Row="2" Height="290"
+                    Games="{Binding Games}" SelectedGame="{Binding SelectedGame, Mode=TwoWay}"
+                    PreviewMouseWheel="GamesListBox_PreviewMouseWheel"/>
             </Grid>
         </Grid>
 
@@ -342,6 +209,10 @@
             </Button>
         </StackPanel>
 
+        <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Settings" Click="Settings_Click"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="28,0,0,28" Panel.ZIndex="6">
+            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="20" Foreground="White"/>
+        </Button>
         <!-- ============ Hint ============ -->
         <TextBlock VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,34"
                    Panel.ZIndex="6"

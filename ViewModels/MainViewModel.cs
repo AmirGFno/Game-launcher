@@ -14,6 +14,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IDialogService _dialog;
     private readonly IProgress<string> _progress;
 
+    private CancellationTokenSource? _steamScan;
     private GameItem? _selectedGame;
     private bool _isCleaning;
     private bool _isReordering;
@@ -41,7 +42,7 @@ public sealed class MainViewModel : ObservableObject
         ToggleReorderCommand = new RelayCommand(() => IsReordering = !IsReordering,
             () => SelectedGame is not null && !IsCleaning);
         CleanCacheCommand = new AsyncRelayCommand(CleanCacheAsync, () => !IsCleaning);
-        CancelCommand = new RelayCommand(() => PlayCommand.Cancel());
+        CancelCommand = new RelayCommand(() => { PlayCommand.Cancel(); _steamScan?.Cancel(); });
 
         Games.CollectionChanged += (_, _) =>
         {
@@ -51,6 +52,8 @@ public sealed class MainViewModel : ObservableObject
 
         _ = LoadGamesAsync();
     }
+
+    public LauncherSettings Settings { get; set; } = new();
 
     public ObservableCollection<GameItem> Games { get; } = new();
 
@@ -143,7 +146,9 @@ public sealed class MainViewModel : ObservableObject
 
         GameItem? selected = SelectedGame;
         int index = selected is null ? -1 : Games.IndexOf(selected);
-        SelectedGame = Games[(index + 1) % Games.Count];
+        int next = Settings.CarouselStyle == "Loop" && Games.Count > 5
+            ? (index + 1) % Games.Count : Math.Min(index + 1, Games.Count - 1);
+        SelectedGame = Games[next];
     }
 
     /// <summary>Moves the carousel selection one item to the left (wraps around).</summary>
@@ -156,7 +161,9 @@ public sealed class MainViewModel : ObservableObject
 
         GameItem? selected = SelectedGame;
         int index = selected is null ? 0 : Games.IndexOf(selected);
-        SelectedGame = Games[(index - 1 + Games.Count) % Games.Count];
+        int previous = Settings.CarouselStyle == "Loop" && Games.Count > 5
+            ? (index - 1 + Games.Count) % Games.Count : Math.Max(0,index - 1);
+        SelectedGame = Games[previous];
     }
 
     /// <summary>
@@ -210,6 +217,35 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    public async Task ImportSteamAsync(CancellationToken token)
+    {
+        if (IsCleaning) return;
+        IsCleaning=true;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        _steamScan = cancellation;
+        token = cancellation.Token;
+        try
+        {
+            var scanner=new SteamScannerService();
+            var found=await Task.Run(scanner.Scan,token);
+            int count=0;
+            foreach(var steam in found)
+            {
+                token.ThrowIfCancellationRequested();
+                if(Games.Any(g => string.Equals(g.LaunchTarget,$"steam://rungameid/{steam.AppId}",StringComparison.OrdinalIgnoreCase))) continue;
+                StatusMessage=$"Importing {steam.Name}…";
+                var game=await scanner.CreateAsync(steam,token);
+                Games.Add(game); count++;
+                SelectedGame ??= game;
+                await PersistAsync();
+            }
+            _dialog.ShowInfo("Steam scan", $"Added {count} games. Existing entries were preserved. Missing artwork can be added in the editor.");
+        }
+        catch(OperationCanceledException) { }
+        catch(Exception ex) { _dialog.ShowError("Steam scan failed",ex.Message); }
+        finally { _steamScan=null; IsCleaning=false; StatusMessage=string.Empty; }
+    }
+
     private async Task PlayAsync(CancellationToken cancellationToken)
     {
         GameItem? game = SelectedGame;
@@ -225,6 +261,9 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
+            if (Settings.CleanCacheBeforeLaunch)
+                await _tempCleaner.CleanAsync(_progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             _launcher.Launch(game);
 
             game.LastPlayed = DateTime.Now;

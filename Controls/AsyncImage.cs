@@ -85,7 +85,7 @@ public sealed class AsyncImage : System.Windows.Controls.Image
         {
             BitmapSource? image = await ImageLoader
                 .LoadAsync(path, maxWidth, desaturate, cancellation.Token)
-                .ConfigureAwait(false);
+                .ConfigureAwait(true);
 
             if (cancellation.IsCancellationRequested || !IsCurrent(path, maxWidth, desaturate))
             {
@@ -109,10 +109,11 @@ public sealed class AsyncImage : System.Windows.Controls.Image
         {
             // A newer request replaced this one - nothing to do.
         }
-        catch
+        catch { if (ReferenceEquals(_pending,cancellation)) Source = null; }
+        finally
         {
-            // A failed load leaves the previous content in place; the UI thread is
-            // the only place where Source may be touched, so nothing is done here.
+            if (ReferenceEquals(_pending,cancellation)) _pending = null;
+            cancellation.Dispose();
         }
     }
 
