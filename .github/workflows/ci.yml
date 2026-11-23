@@ -23,7 +23,33 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Build
-        run: dotnet build GameLauncher.csproj -c Release --nologo -v minimal
+        shell: pwsh
+        run: |
+          dotnet build GameLauncher.csproj -c Release --nologo -v minimal 2>&1 | Tee-Object build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { Get-Content build.log | Select-String 'error ' | Select-Object -Unique | ForEach-Object { Write-Output "::error::$_" } }
+          exit $code
 
       - name: Test
-        run: dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal
+        shell: pwsh
+        run: |
+          dotnet test tests/GFnoLauncher.Tests/GFnoLauncher.Tests.csproj -c Release --nologo -v minimal --logger "trx;LogFileName=results.trx" --results-directory TestResults 2>&1 | Tee-Object test.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content test.log | Select-String 'error |Failed|Error Message|Exception' | ForEach-Object { Write-Output "::error::$_" }
+            if (Test-Path TestResults/results.trx) {
+              [xml]$trx = Get-Content TestResults/results.trx
+              $trx.TestRun.Results.UnitTestResult | Where-Object { $_.outcome -eq 'Failed' } | ForEach-Object { $message = "$($_.testName): $($_.Output.ErrorInfo.Message) $($_.Output.ErrorInfo.StackTrace)" -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'; Write-Output "::error::$message" }
+            }
+          }
+          exit $code
+
+      - name: Test summary
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path TestResults/results.trx) {
+            [xml]$trx = Get-Content TestResults/results.trx
+            $c = $trx.TestRun.ResultSummary.Counters
+            Write-Output "::notice::Tests: total=$($c.total), passed=$($c.passed), failed=$($c.failed)"
+          }

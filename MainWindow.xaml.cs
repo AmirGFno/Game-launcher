@@ -11,12 +11,14 @@ using System.Threading.Tasks;
 using GameLauncher.Converters;
 using GameLauncher.Models;
 using GameLauncher.ViewModels;
+using GameLauncher.Services;
+using GameLauncher.Views;
 
 namespace GameLauncher;
 
 public partial class MainWindow : Window
 {
-    private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(240));
+    private static readonly Duration FadeDuration = new(Controls.GameCarousel.TransitionDuration);
     private static readonly Duration TitleAnimationDuration = new(TimeSpan.FromMilliseconds(320));
 
     private readonly MainViewModel _viewModel;
@@ -32,6 +34,16 @@ public partial class MainWindow : Window
     // System-tray icon: closing the window hides it instead of quitting.
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _isQuitting;
+    private bool _fullscreenLaunching;
+    private readonly DispatcherTimer _edgeTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
+    private DateTime _topSeen, _bottomSeen;
+    private bool _topShown, _bottomShown;
+    private readonly LauncherSettingsService _settingsService = new();
+    private LauncherSettings _settings = new();
+    private WindowState _beforeFullscreen;
+    private Rect _windowedBounds;
+    private bool _windowedTopmost;
+    private readonly CancellationTokenSource _scanCancellation = new();
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -39,8 +51,15 @@ public partial class MainWindow : Window
 
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = viewModel;
+        _settings = _settingsService.Load();
+        _viewModel.Settings = _settings;
+        Carousel.LaunchRequested += (_, _) => { if (!_viewModel.IsReordering) _viewModel.PlayCommand.Execute(null); };
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.PrepareFullscreenLaunchAsync = PrepareFullscreenLaunchAsync;
+        _viewModel.FullscreenLaunchFinished += FullscreenLaunchFinished;
+        MouseMove += TrackFullscreenEdges;
+        _edgeTimer.Tick += (_, _) => UpdateEdgeBars();
 
         _spinnerTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -67,14 +86,18 @@ public partial class MainWindow : Window
         }
 
         UpdateMaximizeIcon();
-        _spinnerTimer.Start();
         EnsureTrayIcon();
+        ApplySettings();
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _edgeTimer.Stop();
+        _viewModel.PrepareFullscreenLaunchAsync = null;
+        _viewModel.FullscreenLaunchFinished -= FullscreenLaunchFinished;
         _spinnerTimer.Stop();
+        _scanCancellation.Cancel();
         DisposeTrayIcon();
     }
 
@@ -84,7 +107,7 @@ public partial class MainWindow : Window
         // Only the tray's "Quit" entry (or a real shutdown) ends the process.
         // Without a tray icon there would be no way back, so fall back to a real
         // close in that (unlikely) case.
-        if (!_isQuitting && _trayIcon is not null)
+        if (!_isQuitting && _settings.CloseToTray && _trayIcon is not null)
         {
             e.Cancel = true;
             Hide();
@@ -102,6 +125,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.IsCleaning))
+        {
+            if (_viewModel.IsCleaning && !_fullscreenLaunching) _spinnerTimer.Start();
+            else _spinnerTimer.Stop();
+        }
         if (e.PropertyName != nameof(MainViewModel.SelectedGame))
         {
             return;
@@ -112,7 +140,7 @@ public partial class MainWindow : Window
 
         if (_viewModel.SelectedGame is not null)
         {
-            GamesListBox.ScrollIntoView(_viewModel.SelectedGame);
+            // GameCarousel owns animated positioning; never ScrollIntoView across a wrap.
         }
     }
 
@@ -127,6 +155,7 @@ public partial class MainWindow : Window
     private async Task CrossFadeBackgroundAsync(string? path)
     {
         int generation = ++_backgroundGeneration;
+        var clock = Stopwatch.StartNew();
 
         System.Windows.Controls.Image incoming = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundFront : BackgroundBack;
         System.Windows.Controls.Image outgoing = ReferenceEquals(_frontLayer, BackgroundBack) ? BackgroundBack : BackgroundFront;
@@ -135,6 +164,8 @@ public partial class MainWindow : Window
         double incomingFrom = incoming.Opacity;
         double outgoingFrom = outgoing.Opacity;
 
+        // Fade the previous art on the same clock as the title/tiles, even on a cold decode.
+        outgoing.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(outgoingFrom, 0, FadeDuration));
         BitmapSource? image = await ImageLoader
             .LoadAsync(path, ImageLoader.MaxBackgroundWidth)
             .ConfigureAwait(true);
@@ -145,6 +176,9 @@ public partial class MainWindow : Window
             return;
         }
 
+        incomingFrom = incoming.Opacity;
+        outgoingFrom = outgoing.Opacity;
+        var remaining = new Duration(TimeSpan.FromMilliseconds(Math.Max(0, Controls.GameCarousel.TransitionDuration.TotalMilliseconds - clock.Elapsed.TotalMilliseconds)));
         incoming.BeginAnimation(UIElement.OpacityProperty, null);
         outgoing.BeginAnimation(UIElement.OpacityProperty, null);
 
@@ -160,14 +194,14 @@ public partial class MainWindow : Window
 
         var storyboard = new Storyboard();
 
-        var fadeIn = new DoubleAnimation(incomingFrom, 1, FadeDuration)
+        var fadeIn = new DoubleAnimation(incomingFrom, 1, remaining)
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
         Storyboard.SetTarget(fadeIn, incoming);
         Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
 
-        var fadeOut = new DoubleAnimation(outgoingFrom, 0, FadeDuration)
+        var fadeOut = new DoubleAnimation(outgoingFrom, 0, remaining)
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut }
         };
@@ -267,8 +301,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowFromTray()
+    internal void ShowFromTray()
     {
+        if (_fullscreenLaunching) { Show(); return; }
+        RestoreLaunchChrome();
         Show();
         WindowState = WindowState.Normal;
         Activate();
@@ -343,38 +379,7 @@ public partial class MainWindow : Window
     /// Starts from the values a previous animation reached, so interrupting it mid-way
     /// does not make the title jump.
     /// </summary>
-    private void AnimateTitle()
-    {
-        double opacityFrom = TitlePanel.Opacity;
-
-        TitlePanel.BeginAnimation(UIElement.OpacityProperty, null);
-        TitlePanel.Opacity = opacityFrom;
-
-        var transform = TitlePanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        double offsetFrom = transform.Y;
-        transform.Y = offsetFrom;
-        TitlePanel.RenderTransform = transform;
-
-        var storyboard = new Storyboard();
-
-        var fade = new DoubleAnimation(opacityFrom, 1, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(fade, TitlePanel);
-        Storyboard.SetTargetProperty(fade, new PropertyPath(UIElement.OpacityProperty));
-
-        var slide = new DoubleAnimation(offsetFrom, 0, TitleAnimationDuration)
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(slide, TitlePanel);
-        Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.Y"));
-
-        storyboard.Children.Add(fade);
-        storyboard.Children.Add(slide);
-        storyboard.Begin();
-    }
+    private void AnimateTitle() { /* The selected tile's title is animated inside GameCarousel. */ }
 
     #endregion
 
@@ -389,6 +394,12 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.F11:
+                _settings.Fullscreen = !_settings.Fullscreen;
+                ApplySettings();
+                try { _settingsService.Save(_settings); } catch (Exception ex) { System.Windows.MessageBox.Show(ex.Message); }
+                e.Handled = true;
+                break;
             case Key.Right:
                 if (_viewModel.IsReordering)
                 {
@@ -579,4 +590,136 @@ public partial class MainWindow : Window
     }
 
     #endregion
+    private bool _fullscreenApplied;
+    private void ApplySettings()
+    {
+        _viewModel.Settings = _settings;
+        Carousel.StyleMode = _settings.CarouselStyle;
+        if (_settings.Fullscreen && !_fullscreenApplied)
+        {
+            _beforeFullscreen = WindowState;
+            _windowedBounds = WindowState == WindowState.Normal
+                ? new Rect(Left,Top,ActualWidth,ActualHeight) : RestoreBounds;
+            _windowedTopmost = Topmost;
+            var monitor = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            var dpi = VisualTreeHelper.GetDpi(this);
+            WindowState = WindowState.Normal;
+            ResizeMode = ResizeMode.NoResize;
+            Left = monitor.Bounds.Left / dpi.DpiScaleX;
+            Top = monitor.Bounds.Top / dpi.DpiScaleY;
+            Width = monitor.Bounds.Width / dpi.DpiScaleX;
+            Height = monitor.Bounds.Height / dpi.DpiScaleY;
+            Topmost = true;
+        }
+        else if (!_settings.Fullscreen && _fullscreenApplied)
+        {
+            WindowState = WindowState.Normal;
+            Topmost = _windowedTopmost;
+            Left = _windowedBounds.Left; Top = _windowedBounds.Top;
+            Width = _windowedBounds.Width; Height = _windowedBounds.Height;
+            WindowState = _beforeFullscreen;
+            ResizeMode = ResizeMode.NoResize;
+        }
+        _fullscreenApplied = _settings.Fullscreen;
+        HeaderBar.Visibility = Visibility.Visible;
+        HeaderRow.Height = new GridLength(64);
+        _topSeen = _bottomSeen = DateTime.MinValue;
+        SetBar(HeaderBar, !_settings.Fullscreen, true);
+        SetBar(BottomBar, !_settings.Fullscreen, false);
+        if (_settings.Fullscreen) _edgeTimer.Start(); else _edgeTimer.Stop();
+    }
+    private void Settings_Click(object sender,RoutedEventArgs e)
+    {
+        if (_viewModel.IsCleaning) return;
+        var dialog = new SettingsWindow(_settings,_settingsService) { Owner=this };
+        if (dialog.ShowDialog()==true) { _settings=dialog.Settings; ApplySettings(); }
+        if (dialog.ArtworkCleared)
+        {
+            Carousel.RefreshArtwork();
+            _ = CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        }
+    }
+    private async void SteamScan_Click(object sender,RoutedEventArgs e)
+    {
+        if (_viewModel.IsCleaning) return;
+        var choice = System.Windows.MessageBox.Show(this,
+            "Scan Steam libraries and add missing games? Existing metadata is preserved and missing artwork is retried.\n\nYes: detect Steam automatically\nNo: choose a Steam or library folder\nCancel: do not scan",
+            "Steam scan", MessageBoxButton.YesNoCancel);
+        if (choice == MessageBoxResult.Cancel) return;
+        string? manualRoot = null;
+        if (choice == MessageBoxResult.No)
+        {
+            var picker = new Microsoft.Win32.OpenFolderDialog { Title = "Choose Steam, a Steam library, or steamapps folder" };
+            if (picker.ShowDialog(this) != true) return;
+            manualRoot = picker.FolderName;
+        }
+        SteamButton.IsEnabled=false;
+        try { await _viewModel.ImportSteamAsync(_scanCancellation.Token, manualRoot); }
+        finally
+        {
+            SteamButton.IsEnabled=true;
+            Carousel.RefreshArtwork();
+            await CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
+        }
+    }
+
+    private void TrackFullscreenEdges(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_settings.Fullscreen || _fullscreenLaunching) return;
+        double y = e.GetPosition(this).Y;
+        if (y <= 10 || (_topShown && y <= 72)) _topSeen = DateTime.UtcNow;
+        if (y >= ActualHeight - 10 || (_bottomShown && y >= ActualHeight - 100)) _bottomSeen = DateTime.UtcNow;
+        UpdateEdgeBars();
+    }
+    private void UpdateEdgeBars()
+    {
+        if (!_settings.Fullscreen || _fullscreenLaunching) return;
+        SetBar(HeaderBar, DateTime.UtcNow - _topSeen < TimeSpan.FromMilliseconds(600), true);
+        SetBar(BottomBar, DateTime.UtcNow - _bottomSeen < TimeSpan.FromMilliseconds(600), false);
+    }
+    private void SetBar(FrameworkElement bar, bool show, bool top)
+    {
+        bool previous = top ? _topShown : _bottomShown;
+        if (top) _topShown = show; else _bottomShown = show;
+        bar.IsHitTestVisible = show;
+        if (previous == show && bar.Opacity == (show ? 1 : 0)) return;
+        bar.BeginAnimation(OpacityProperty, new DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(180)));
+        if (bar.RenderTransform is not TranslateTransform) bar.RenderTransform = new TranslateTransform();
+        ((TranslateTransform)bar.RenderTransform).BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(show ? 0 : (top ? -8 : 8), TimeSpan.FromMilliseconds(180)));
+    }
+    private async Task PrepareFullscreenLaunchAsync(GameItem game)
+    {
+        _fullscreenLaunching = true;
+        _spinnerTimer.Stop();
+        ChromeRoot.Visibility = Visibility.Hidden;
+        IsEnabled = false;
+        Topmost = false; // Never pin the launcher above the game taking focus.
+        // Pin the selected game's art, never an older asynchronous background request.
+        int generation = ++_backgroundGeneration;
+        var image = await ImageLoader.LoadAsync(game.BackgroundPath, ImageLoader.MaxBackgroundWidth);
+        if (generation == _backgroundGeneration)
+        {
+            BackgroundBack.BeginAnimation(OpacityProperty, null); BackgroundFront.BeginAnimation(OpacityProperty, null);
+            BackgroundBack.Source = image; BackgroundBack.Opacity = 1; BackgroundFront.Opacity = 0;
+            _frontLayer = BackgroundBack;
+        }
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+    }
+    private void FullscreenLaunchFinished(object? sender, bool success)
+    {
+        if (success)
+        {
+            if (_settings.CloseToTray && _trayIcon is not null) Hide();
+            else WindowState = WindowState.Minimized;
+        }
+        RestoreLaunchChrome();
+    }
+    private void RestoreLaunchChrome()
+    {
+        _fullscreenLaunching = false; IsEnabled = true; ChromeRoot.Visibility = Visibility.Visible;
+        _topSeen = _bottomSeen = DateTime.MinValue;
+        SetBar(HeaderBar, !_settings.Fullscreen, true); SetBar(BottomBar, !_settings.Fullscreen, false);
+    }
+
 }

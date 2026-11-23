@@ -8,7 +8,7 @@
 ; ============================================================================
 
 #define MyAppName     "GFno Launcher"
-#define MyAppVersion  "2.0.0"
+#define MyAppVersion  "2.1.3"
 #define MyAppExeName  "GFnoLauncher.exe"
 
 [Setup]

@@ -10,7 +10,7 @@ public sealed record CleanupResult(int Deleted, int Skipped, long FreedBytes);
 /// Optional, explicitly initiated cleanup of the application's own cache folder.
 /// <para>
 /// It never touches <c>%TEMP%</c>, <c>C:\Windows\Temp</c> or a per-game folder, and
-/// it is not part of the launch sequence.
+/// pre-launch cleanup is disabled unless the user explicitly enables it.
 /// </para>
 /// </summary>
 public interface ITempCleanerService

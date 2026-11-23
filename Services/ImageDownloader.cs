@@ -1,222 +1,116 @@
+using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Windows.Media.Imaging;
 
 namespace GameLauncher.Services;
 
-/// <summary>
-/// Downloads an image from a direct URL into the local image cache, so the
-/// downloaded artwork survives even if the remote file disappears.
-/// <para>
-/// Downloads are capped (<see cref="MaxBytes"/>), the bytes are streamed to a
-/// temporary file, and the result is validated as a real, decodable image before it
-/// is moved into place. An interrupted or oversized download never leaves a partial
-/// file behind.
-/// </para>
-/// </summary>
+/// <summary>Shared bounded downloader. Expected failures are surfaced to editor/import callers, never reported as success.</summary>
 public static class ImageDownloader
 {
-    /// <summary>Maximum accepted download size (25 MB).</summary>
     public const long MaxBytes = 25L * 1024 * 1024;
-
-    /// <summary>Maximum accepted image dimension in either direction.</summary>
     public const int MaxDimension = 16384;
-
-    private static readonly HttpClient Client = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30)
-    };
-
-    /// <summary>
-    /// Test hook: redirects the download directory. Production leaves this null and
-    /// uses <c>%LocalAppData%\GameLauncher\Images</c>.
-    /// </summary>
+    public const long MaxPixels = 64L * 1024 * 1024;
+    public const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    public const string Accept = "image/avif,image/webp,image/apng,image/*,*/*;q=0.8";
+    private static readonly HttpClient Client = new(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(30) };
     public static string? CustomImagesDirectory { get; set; }
+    public static string ImagesDirectory => CustomImagesDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GameLauncher", "Images");
 
-    private static string ImagesDirectory => CustomImagesDirectory ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "GameLauncher",
-        "Images");
+    public static Task<string> DownloadAsync(string? url, CancellationToken cancellationToken)
+        => DownloadCoreAsync(Client, url, ImagesDirectory, null, cancellationToken);
 
-    /// <summary>
-    /// Downloads <paramref name="url"/> and stores it under the image cache.
-    /// Returns the saved file path.
-    /// </summary>
-    /// <exception cref="ArgumentException">The value is not a valid http(s) URL.</exception>
-    /// <exception cref="HttpRequestException">The server returned an error status.</exception>
-    /// <exception cref="InvalidOperationException">
-    /// The response was too large, empty, or not a usable image.
-    /// </exception>
-    public static async Task<string> DownloadAsync(string? url, CancellationToken cancellationToken)
+    public static Task<string> DownloadStableAsync(string url, string stem, CancellationToken token)
+        => DownloadCoreAsync(Client, url, ImagesDirectory, stem, token);
+
+    // Injectable client and directory keep tests offline and isolated from real user files.
+    internal static async Task<string> DownloadCoreAsync(HttpClient client, string? url, string directory, string? stem, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            throw new ArgumentException("Paste an image URL into the field first.", nameof(url));
-        }
-
-        string trimmed = url.Trim();
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new ArgumentException("That is not a valid http(s) image URL.");
-        }
-
-        using HttpResponseMessage response = await Client
-            .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-
+        if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) || (uri.Scheme != "https" && uri.Scheme != "http"))
+            throw new ArgumentException("Enter a direct HTTP or HTTPS image URL.");
+        if (stem is not null && (stem.Length > 100 || stem.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_')))
+            throw new ArgumentException("Invalid cache filename.");
+        // Covers response headers AND streamed body; HttpClient's headers-only timeout alone is insufficient.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        token = deadline.Token;
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        request.Headers.TryAddWithoutValidation("Accept", Accept);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-
-        if (response.Content.Headers.ContentLength is long declaredLength && declaredLength > MaxBytes)
-        {
-            throw new InvalidOperationException(
-                $"The image is larger than the {MaxBytes / (1024 * 1024)} MB limit.");
-        }
-
-        string extension = ResolveExtension(response, uri);
-
-        Directory.CreateDirectory(ImagesDirectory);
-        string targetPath = Path.Combine(ImagesDirectory, $"{Guid.NewGuid():N}{extension}");
-        string temporaryPath = targetPath + ".part";
-
+        if (response.Content.Headers.ContentLength is long length && (length < 12 || length > MaxBytes))
+            throw new InvalidOperationException("Image response is empty, too small, or exceeds 25 MB.");
+        directory = PathSafety.EnsureSafeRoot(directory);
+        Directory.CreateDirectory(directory);
+        string temporary = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".part");
         try
         {
-            await using Stream source = await response.Content
-                .ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            await using FileStream target = new(
-                temporaryPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 81920,
-                useAsync: true);
-
-            byte[] buffer = new byte[81920];
-            long total = 0;
-            int read;
-
-            while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            await using (var source = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false))
+            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true))
             {
-                total += read;
-
-                if (total > MaxBytes)
+                byte[] buffer = new byte[81920]; long total = 0; int count;
+                while ((count = await source.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
                 {
-                    throw new InvalidOperationException(
-                        $"The image is larger than the {MaxBytes / (1024 * 1024)} MB limit.");
+                    total += count;
+                    if (total > MaxBytes) throw new InvalidOperationException("Image exceeds the 25 MB limit.");
+                    await output.WriteAsync(buffer.AsMemory(0, count), token).ConfigureAwait(false);
                 }
-
-                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                            .ConfigureAwait(false);
-            }
-
-            if (total == 0)
-            {
-                throw new InvalidOperationException("The download was empty.");
-            }
-
-            await target.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-            // Only accept a real, decodable image within sane dimensions.
-            ValidateImageFile(temporaryPath);
-
-            File.Move(temporaryPath, targetPath);
-            return targetPath;
+                if (total < 12) throw new InvalidOperationException("The image response was empty or incomplete.");
+                await output.FlushAsync(token).ConfigureAwait(false);
+            } // Critical: release the exclusive write handle BEFORE validating or moving the file.
+            string extension = await Task.Run(() => ValidateAndGetExtension(temporary), token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            string path = Path.Combine(directory, (stem ?? Guid.NewGuid().ToString("N")) + extension);
+            if (File.Exists(path) && PathSafety.IsReparsePoint(path)) throw new IOException("Cache target is a symbolic link.");
+            if (File.Exists(path) && !File.Exists(path + ".downloaded"))
+                throw new IOException("A manually added file already uses this artwork cache name.");
+            File.Move(temporary, path, overwrite: true);
+            // Explicit ownership marker: artwork clearing must not delete manually copied images.
+            string marker = path + ".downloaded";
+            if (!PathSafety.IsReparsePoint(marker)) File.WriteAllText(marker, "GFno downloaded artwork\n");
+            return path;
         }
-        catch
+        catch (Exception ex)
         {
-            // Never leave a partial download behind.
-            TryDelete(temporaryPath);
+            Debug.WriteLine("Artwork download failed: " + ex.Message);
+            try { File.Delete(temporary); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
         }
     }
 
-    /// <summary>
-    /// Throws <see cref="InvalidOperationException"/> unless the file is a decodable
-    /// image within <see cref="MaxDimension"/>. Internal so the tests can exercise it
-    /// without a network call.
-    /// </summary>
-    internal static void ValidateImageFile(string path)
+    internal static void ValidateImageFile(string path) => ValidateAndGetExtension(path);
+    internal static string ValidateAndGetExtension(string path)
     {
         try
         {
-            using var image = SixLabors.ImageSharp.Image.Load(path);
-
-            if (image.Width <= 0 || image.Height <= 0)
+            if (new FileInfo(path).Length > MaxBytes) throw new InvalidOperationException("Image exceeds the size limit.");
+            using var probe = File.OpenRead(path);
+            Span<byte> header = stackalloc byte[12];
+            if (probe.Read(header) < 12) throw new InvalidOperationException("Incomplete image.");
+            probe.Position = 0;
+            // ICO is a native WPF format, not supported by ImageSharp 3.x.
+            if (header[0] == 0 && header[1] == 0 && header[2] == 1 && header[3] == 0)
             {
-                throw new InvalidOperationException("The image has no usable dimensions.");
+                var decoder = BitmapDecoder.Create(probe, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+                foreach (var frame in decoder.Frames) CheckDimensions(frame.PixelWidth, frame.PixelHeight);
+                if (decoder.Frames.Count == 0) throw new InvalidOperationException("Empty icon.");
+                return ".ico";
             }
-
-            if (image.Width > MaxDimension || image.Height > MaxDimension)
-            {
-                throw new InvalidOperationException(
-                    $"The image is larger than {MaxDimension}x{MaxDimension} pixels.");
-            }
+            var info = SixLabors.ImageSharp.Image.Identify(probe);
+            CheckDimensions(info.Width, info.Height);
+            probe.Position = 0;
+            using var image = SixLabors.ImageSharp.Image.Load(probe);
+            var format = image.Metadata.DecodedImageFormat?.Name.ToUpperInvariant();
+            return format switch { "JPEG" => ".jpg", "WEBP" => ".webp", "PNG" => ".png", "GIF" => ".gif", "BMP" => ".bmp", "TIFF" => ".tiff", _ => throw new InvalidOperationException("Unsupported image format.") };
         }
-        catch (InvalidOperationException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            throw new InvalidOperationException("The downloaded file is not a valid image.", ex);
-        }
-        catch
-        {
-            throw new InvalidOperationException("The downloaded file is not a valid image.");
-        }
+        catch (InvalidOperationException) { throw; }
+        catch (Exception ex) { throw new InvalidOperationException("The response is not a supported, decodable image.", ex); }
     }
-
-    private static void TryDelete(string path)
+    internal static void CheckDimensions(int width, int height)
     {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch
-        {
-            // Best effort - the .part file is harmless.
-        }
-    }
-
-    /// <summary>Picks a file extension from the content type, falling back to the URL.</summary>
-    private static string ResolveExtension(HttpResponseMessage response, Uri uri)
-    {
-        string? contentType = response.Content.Headers.ContentType?.MediaType;
-        if (!string.IsNullOrWhiteSpace(contentType))
-        {
-            switch (contentType.ToLowerInvariant())
-            {
-                case "image/png":
-                    return ".png";
-                case "image/jpeg":
-                case "image/jpg":
-                    return ".jpg";
-                case "image/gif":
-                    return ".gif";
-                case "image/bmp":
-                    return ".bmp";
-                case "image/tiff":
-                    return ".tiff";
-                case "image/webp":
-                    return ".webp";
-                case "image/x-icon":
-                case "image/icon":
-                case "image/vnd.microsoft.icon":
-                    return ".ico";
-            }
-        }
-
-        string pathExtension = Path.GetExtension(uri.AbsolutePath);
-        if (pathExtension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".tiff" or ".webp" or ".ico")
-        {
-            return pathExtension == ".jpeg" ? ".jpg" : pathExtension;
-        }
-
-        // Unknown content type: WPF can still show PNG/JPEG, so default to .png.
-        return ".png";
+        if (width < 1 || height < 1 || width > MaxDimension || height > MaxDimension || (long)width * height > MaxPixels)
+            throw new InvalidOperationException("Artwork dimensions exceed the safe decode limit.");
     }
 }

@@ -26,6 +26,8 @@ public partial class GameEditorWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _viewModel.DownloadLogoCommand.Cancel();
+        _viewModel.DownloadBackgroundCommand.Cancel();
         _viewModel.RequestClose -= OnRequestClose;
         Closed -= OnClosed;
     }
