@@ -593,7 +593,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog()==true) { _settings=dialog.Settings; ApplySettings(); }
         if (dialog.ArtworkCleared)
         {
-            Carousel.Games=null; Carousel.Games=_viewModel.Games;
+            Carousel.RefreshArtwork();
             _ = CrossFadeBackgroundAsync(_viewModel.SelectedGame?.BackgroundPath);
         }
     }

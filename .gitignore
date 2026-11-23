@@ -35,3 +35,8 @@ nuget.g.targets
 # OS
 .DS_Store
 Thumbs.db
+
+# Local test diagnostics
+TestResults/
+build.log
+test.log

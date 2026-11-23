@@ -21,7 +21,7 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
     public static readonly DependencyProperty SelectedGameProperty = DependencyProperty.Register(nameof(SelectedGame), typeof(GameItem), typeof(GameCarousel), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, SelectionChanged));
     public static readonly DependencyProperty StyleModeProperty = DependencyProperty.Register(nameof(StyleMode), typeof(string), typeof(GameCarousel), new PropertyMetadata("Loop", (d, _) => ((GameCarousel)d).Reset()));
     public IEnumerable? Games { get => (IEnumerable?)GetValue(GamesProperty); set => SetValue(GamesProperty, value); }
-    public GameItem? SelectedGame { get => (GameItem?)GetValue(SelectedGameProperty); set => SetValue(SelectedGameProperty, value); }
+    public GameItem? SelectedGame { get => (GameItem?)GetValue(SelectedGameProperty); set => SetCurrentValue(SelectedGameProperty, value); }
     public string StyleMode { get => (string)GetValue(StyleModeProperty); set { SetValue(StyleModeProperty, value); Reset(); } }
     public event EventHandler? LaunchRequested;
     private readonly Canvas _canvas = new() { ClipToBounds = true };
@@ -54,6 +54,8 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
     }
     private void CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => Reset();
     private static void SelectionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) => ((GameCarousel)d).Move();
+    public void RefreshArtwork() => Reset();
+
     private void Reset()
     {
         _generation++; _moving = false;

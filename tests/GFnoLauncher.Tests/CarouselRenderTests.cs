@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using GameLauncher.Controls;
 using GameLauncher.Models;
@@ -23,6 +24,8 @@ public class CarouselRenderTests
             {
                 var games = new ObservableCollection<GameItem>(Enumerable.Range(0,6).Select(i => new GameItem { Title="Game " + i }));
                 var carousel = new GameCarousel { Width=1200, Height=290, Games=games, SelectedGame=games[5] };
+                var selection = new GameCarousel { SelectedGame=games[5] };
+                BindingOperations.SetBinding(carousel,GameCarousel.SelectedGameProperty,new Binding("SelectedGame") { Source=selection,Mode=BindingMode.TwoWay });
                 var window = new Window { Width=1200, Height=350, ShowInTaskbar=false, WindowStyle=WindowStyle.None,
                     Left=-10000, Top=-10000, Content=carousel };
                 window.Show();
@@ -34,6 +37,8 @@ public class CarouselRenderTests
                     try
                     {
                         Assert.Same(games[0],carousel.SelectedGame);
+                        Assert.True(BindingOperations.IsDataBound(carousel,GameCarousel.SelectedGameProperty));
+                        Assert.Same(games[0],selection.SelectedGame);
                         var canvas=Assert.IsType<Canvas>(carousel.Content);
                         Assert.InRange(canvas.Children.Count,1,13);
                         var titles=canvas.Children.OfType<Border>().Select(b => (b.Child as TextBlock)?.Text).ToArray();
