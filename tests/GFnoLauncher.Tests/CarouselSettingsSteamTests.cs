@@ -34,6 +34,16 @@ public sealed class CarouselSettingsSteamTests : IDisposable
         Assert.True(read.Fullscreen); Assert.True(read.CleanCacheBeforeLaunch); Assert.False(read.CloseToTray);
         Assert.True(File.Exists(path+".bak"));
     }
+    [Theory]
+    [InlineData("Loop Style", "Loop")]
+    [InlineData("Loop (PS5 Style)", "Loop")]
+    [InlineData("Fixed Anchor", "FixedAnchor")]
+    public void LegacyStyleLabelsMigrate(string saved, string expected)
+    {
+        string path=Path.Combine(_root,"settings.json");
+        File.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new { CarouselStyle=saved }));
+        Assert.Equal(expected,new LauncherSettingsService(path).Load().CarouselStyle);
+    }
     [Fact]
     public void InvalidSettingsFallBackWithoutDeletingFile()
     {

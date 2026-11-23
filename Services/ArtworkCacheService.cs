@@ -8,6 +8,7 @@ public sealed class ArtworkCacheService
     public Task<(int Deleted, int Skipped)> ClearAsync() => Task.Run(() =>
     {
         string appRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"GameLauncher");
+        PathSafety.EnsureSafeRoot(appRoot);
         int deleted=0, skipped=0;
         foreach (string name in new[] { "Images", "Icons" })
         {

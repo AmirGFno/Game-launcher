@@ -13,7 +13,7 @@ using Xunit;
 namespace GFnoLauncher.Tests;
 public sealed class ArtworkPipelineTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "gfno-download-" + Guid.NewGuid());
+    private readonly string _root = Path.Combine(AppContext.BaseDirectory, "gfno-download-" + Guid.NewGuid());
     public ArtworkPipelineTests() => Directory.CreateDirectory(_root);
     private static byte[] ImageBytes(bool webp)
     {

@@ -64,6 +64,8 @@ public static class ImageDownloader
             token.ThrowIfCancellationRequested();
             string path = Path.Combine(directory, (stem ?? Guid.NewGuid().ToString("N")) + extension);
             if (File.Exists(path) && PathSafety.IsReparsePoint(path)) throw new IOException("Cache target is a symbolic link.");
+            if (File.Exists(path) && !File.Exists(path + ".downloaded"))
+                throw new IOException("A manually added file already uses this artwork cache name.");
             File.Move(temporary, path, overwrite: true);
             // Explicit ownership marker: artwork clearing must not delete manually copied images.
             string marker = path + ".downloaded";
