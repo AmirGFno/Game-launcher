@@ -42,11 +42,13 @@ public sealed class GameProcessWatcher
             try { install = new SteamScannerService().Scan().FirstOrDefault(g => g.AppId == appId)?.InstallDirectory; }
             catch (Exception ex) { Debug.WriteLine(ex); }
         }
+        var family = new HashSet<int>();
+        if (direct && started is not null) family.Add(started.Id);
         int observations = 0;
         bool Ready()
         {
             observations++;
-            if (direct && ObserveOwnedChildren()) return true;
+            if (direct && ObserveOwnedChildren(family)) return true;
             if (direct && started is not null)
             {
                 try
@@ -88,11 +90,11 @@ public sealed class GameProcessWatcher
         if (!detected && direct) throw new InvalidOperationException("The executable exited before a running game could be confirmed. The launcher has been restored.");
     }
 
-    private bool ObserveOwnedChildren()
+    private bool ObserveOwnedChildren(HashSet<int> family)
     {
         var parents = ProcessTree.Parents();
         KeyValuePair<int, (DateTime Start, string Path)>[] identities;
-        lock (_owned) identities = _owned.ToArray();
+        lock (_owned) identities = _owned.Where(p => family.Contains(p.Key)).ToArray();
         bool childRunning = false;
         foreach (var parent in identities)
         {
@@ -100,6 +102,8 @@ public sealed class GameProcessWatcher
             {
                 using var owner = Process.GetProcessById(parent.Key);
                 if (owner.StartTime.ToUniversalTime() != parent.Value.Start || owner.HasExited) continue;
+                // A previously observed descendant remains valid after its bootstrap parent exits.
+                childRunning |= owner.MainWindowHandle != IntPtr.Zero;
                 foreach (int pid in parents.Where(p => p.Value == parent.Key).Select(p => p.Key))
                 {
                     using var child = Process.GetProcessById(pid);
@@ -108,6 +112,7 @@ public sealed class GameProcessWatcher
                     if (path is null || start < parent.Value.Start || child.HasExited ||
                         string.Equals(child.ProcessName, "steam", StringComparison.OrdinalIgnoreCase)) continue;
                     lock (_owned) _owned[pid] = (start, path);
+                    family.Add(pid);
                     childRunning |= child.MainWindowHandle != IntPtr.Zero;
                 }
             }

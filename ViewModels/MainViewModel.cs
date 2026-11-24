@@ -274,22 +274,21 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        // The launch path is deliberately lightweight: no cleanup, no artificial
-        // delay - just start the process and record the launch.
+        // Hide chrome before starting, observe readiness asynchronously, then yield the screen.
+        // Manual process cleanup is never part of the optional prelaunch cache cleanup.
         IsCleaning = true;
         StatusMessage = $"Launching {game.Title}...";
-        bool fullscreen = true; // Background-only launch and restore apply in both window modes.
         bool started = false;
         try
         {
-            if (fullscreen && PrepareFullscreenLaunchAsync is not null)
+            if (PrepareFullscreenLaunchAsync is not null)
                 await PrepareFullscreenLaunchAsync(game);
             if (Settings.CleanCacheBeforeLaunch)
                 await _tempCleaner.CleanAsync(_progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await _launcher.LaunchAndWaitAsync(game, cancellationToken);
             started = true;
-            if (fullscreen) FullscreenLaunchFinished?.Invoke(this, true);
+            FullscreenLaunchFinished?.Invoke(this, true);
 
             game.LastPlayed = DateTime.Now;
             game.LaunchCount++;
@@ -297,12 +296,12 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
+            if (!started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             StatusMessage = "Cancelled.";
         }
         catch (Exception ex)
         {
-            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
+            if (!started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             _dialog.ShowError("Could not launch the game", ex.Message);
         }
         finally

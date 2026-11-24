@@ -27,11 +27,12 @@ public sealed class CarouselSettingsSteamTests : IDisposable
         string path=Path.Combine(_root,"settings.json");
         var service=new LauncherSettingsService(path);
         Assert.False(service.Load().CleanCacheBeforeLaunch);
-        var settings=new LauncherSettings { CarouselStyle="FixedAnchor", Fullscreen=true, CleanCacheBeforeLaunch=true, CloseToTray=false };
+        Assert.False(service.Load().MinimizeToTrayOnLaunch);
+        var settings=new LauncherSettings { CarouselStyle="FixedAnchor", Fullscreen=true, CleanCacheBeforeLaunch=true, CloseToTray=false, MinimizeToTrayOnLaunch=true };
         service.Save(settings); service.Save(settings);
         var read=new LauncherSettingsService(path).Load();
         Assert.Equal("FixedAnchor",read.CarouselStyle);
-        Assert.True(read.Fullscreen); Assert.True(read.CleanCacheBeforeLaunch); Assert.False(read.CloseToTray);
+        Assert.True(read.Fullscreen); Assert.True(read.CleanCacheBeforeLaunch); Assert.False(read.CloseToTray); Assert.True(read.MinimizeToTrayOnLaunch);
         Assert.True(File.Exists(path+".bak"));
     }
     [Theory]

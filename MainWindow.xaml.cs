@@ -720,7 +720,7 @@ public partial class MainWindow : Window
     {
         if (success)
         {
-            if (_settings.CloseToTray && _trayIcon is not null) Hide();
+            if (_settings.MinimizeToTrayOnLaunch && _trayIcon is not null) Hide();
             else WindowState = WindowState.Minimized;
         }
         RestoreLaunchChrome();

@@ -91,7 +91,7 @@ public sealed class TempCleanerService : ITempCleanerService
             {
                 long size = SafeGetSize(entry);
 
-                if (DeleteEntry(entry))
+                if (DeleteEntry(entry, cancellationToken))
                 {
                     deleted++;
                     freedBytes += size;
@@ -154,8 +154,9 @@ public sealed class TempCleanerService : ITempCleanerService
         }
     }
 
-    private bool DeleteEntry(string entry)
+    private bool DeleteEntry(string entry, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (!PathSafety.IsSafeToDelete(entry, _cacheDirectory)) return false;
         FileAttributes attributes = File.GetAttributes(entry);
 
@@ -167,8 +168,17 @@ public sealed class TempCleanerService : ITempCleanerService
 
         if ((attributes & FileAttributes.Directory) != 0)
         {
+            bool complete = true;
             foreach (string child in Directory.EnumerateFileSystemEntries(entry).ToList())
-                if (!DeleteEntry(child)) return false;
+            {
+                try { if (!DeleteEntry(child, token)) complete = false; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    complete = false;
+                    System.Diagnostics.Trace.WriteLine($"Cleanup skipped {child}: {ex.Message}");
+                }
+            }
+            if (!complete) return false;
             Directory.Delete(entry, recursive: false);
         }
         else
@@ -184,13 +194,9 @@ public sealed class TempCleanerService : ITempCleanerService
         try
         {
             FileAttributes attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0) return 0;
             if ((attributes & FileAttributes.Directory) != 0)
-            {
-                return Directory
-                    .EnumerateFileSystemEntries(entry, "*", SearchOption.AllDirectories)
-                    .Where(File.Exists)
-                    .Sum(file => new FileInfo(file).Length);
-            }
+                return Directory.EnumerateFileSystemEntries(entry).Sum(SafeGetSize);
 
             return new FileInfo(entry).Length;
         }
