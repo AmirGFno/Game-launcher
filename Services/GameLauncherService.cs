@@ -6,7 +6,18 @@ namespace GameLauncher.Services;
 
 public sealed class GameLauncherService : IGameLauncherService
 {
-    public void Launch(GameItem game)
+    private readonly GameProcessWatcher _watcher = new();
+    public void Launch(GameItem game) { using var process = Start(game); }
+    public async Task LaunchAndWaitAsync(GameItem game, CancellationToken token)
+    {
+        await Task.Run(async () => {
+            var launchedAt = DateTime.UtcNow;
+            using var process = Start(game);
+            await _watcher.WaitAsync(game, process, launchedAt, token);
+        }, token);
+    }
+    public Task<string> CloseTrackedAsync(CancellationToken token) => _watcher.CloseTrackedAsync(token);
+    private static Process? Start(GameItem game)
     {
         ArgumentNullException.ThrowIfNull(game);
 
@@ -37,6 +48,6 @@ public sealed class GameLauncherService : IGameLauncherService
             startInfo.WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(target)) ?? string.Empty;
         }
 
-        using Process? process = Process.Start(startInfo);
+        return Process.Start(startInfo);
     }
 }

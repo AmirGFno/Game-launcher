@@ -106,6 +106,8 @@ public sealed class TempCleanerService : ITempCleanerService
                                       or System.Security.SecurityException)
             {
                 // File is in use or protected - skip it and keep going.
+                System.Diagnostics.Trace.WriteLine($"Cleanup skipped {entry}: {ex.Message}");
+                progress.Report($"Skipped locked/protected item: {Path.GetFileName(entry)}");
                 skipped++;
             }
         }
@@ -152,8 +154,9 @@ public sealed class TempCleanerService : ITempCleanerService
         }
     }
 
-    private static bool DeleteEntry(string entry)
+    private bool DeleteEntry(string entry)
     {
+        if (!PathSafety.IsSafeToDelete(entry, _cacheDirectory)) return false;
         FileAttributes attributes = File.GetAttributes(entry);
 
         // Defence in depth: never follow a link that appeared after enumeration.
@@ -164,7 +167,9 @@ public sealed class TempCleanerService : ITempCleanerService
 
         if ((attributes & FileAttributes.Directory) != 0)
         {
-            Directory.Delete(entry, recursive: true);
+            foreach (string child in Directory.EnumerateFileSystemEntries(entry).ToList())
+                if (!DeleteEntry(child)) return false;
+            Directory.Delete(entry, recursive: false);
         }
         else
         {

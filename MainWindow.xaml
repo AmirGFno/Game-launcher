@@ -128,7 +128,7 @@
                         <Path Data="M3,12.5 H13" Stroke="White" StrokeThickness="1.2"
                               Width="16" Height="16" Stretch="Uniform" />
                     </Button>
-                    <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Maximize"
+                    <Button x:Name="MaximizeButton" Style="{StaticResource ChromeButtonStyle}" ToolTip="Maximize"
                             Click="MaximizeButton_Click">
                         <Path x:Name="MaximizeIcon" Data="M3,3 H13 V13 H3 Z" Stroke="White"
                               StrokeThickness="1.2" Fill="Transparent"

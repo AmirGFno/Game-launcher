@@ -67,6 +67,7 @@ public static class ImageDownloader
             if (File.Exists(path) && !File.Exists(path + ".downloaded"))
                 throw new IOException("A manually added file already uses this artwork cache name.");
             File.Move(temporary, path, overwrite: true);
+            GameLauncher.Converters.ImageLoader.Invalidate(path);
             // Explicit ownership marker: artwork clearing must not delete manually copied images.
             string marker = path + ".downloaded";
             if (!PathSafety.IsReparsePoint(marker)) File.WriteAllText(marker, "GFno downloaded artwork\n");

@@ -29,6 +29,8 @@ public sealed class GameItem : INotifyPropertyChanged
     /// </summary>
     public string LaunchTarget { get; set; } = string.Empty;
 
+    public string? SteamInstallDirectory { get; set; }
+
     /// <summary>Optional path to the game logo (.ico / .png / .jpg / .webp).</summary>
     public string? LogoPath { get; set; }
 

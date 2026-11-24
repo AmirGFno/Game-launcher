@@ -17,6 +17,9 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
 {
     public const double LoopTileSize = 120; // tweak here
     public const double LoopGap = 10;       // tweak here
+    public const double LoopStripTop = 90; // tweak here: lower strip leaves more background above
+    public const double LoopSelectedScale = 1.28;
+    public const double LoopNameSize = 18;
     public const double FixedTileSize = 140;
     public const double FixedGap = 30; // 15px either side, matching the original WPF row
     public static readonly TimeSpan TransitionDuration = TimeSpan.FromMilliseconds(300);
@@ -92,9 +95,11 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
         // Reserve a complete slot on the right; the mask applies only to artwork, never to the title.
         double viewport = Fixed ? ActualWidth : Math.Min(ActualWidth - pitch, visible * pitch);
         _tiles.Width = Math.Max(0, viewport); _tiles.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
-        _tiles.OpacityMask = new LinearGradientBrush(new GradientStopCollection {
-            new(Colors.Transparent, 0), new(Colors.White, Fixed ? .05 : .12),
-            new(Colors.White, Fixed ? .95 : .84), new(Colors.Transparent, 1) }, 0);
+        double half = Math.Min(.24, size / 2 / Math.Max(1, viewport));
+        _tiles.OpacityMask = Fixed ? null : new LinearGradientBrush(new GradientStopCollection {
+            new(Colors.Transparent, 0), new(Colors.Transparent, half), new(Colors.White, half * 2),
+            new(Colors.White, 1 - half * 2), new(Colors.Transparent, 1 - half), new(Colors.Transparent, 1) }, 0);
+        double titleFromX = 0, titleFromY = 0;
         int left = Fixed ? -(visible / 2) : -2;
         int right = Fixed ? visible / 2 : visible - 3;
         var needed = new HashSet<int>();
@@ -113,13 +118,19 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
             }
             double x = Canvas.GetLeft(tile);
             double destination = anchor + slot * pitch - (pitch-size)/2;
+            if (!Fixed && slot != 0) destination += Math.Sign(slot) * 16; // room for emphasized selection
             tile.BeginAnimation(Canvas.LeftProperty, null); Canvas.SetLeft(tile, destination);
             if (animate) tile.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(x, destination, TransitionDuration) { EasingFunction = Ease(), FillBehavior = FillBehavior.Stop });
-            Canvas.SetTop(tile, Fixed ? 78 : 44);
+            Canvas.SetTop(tile, Fixed ? 78 : LoopStripTop);
+            Panel.SetZIndex(tile, slot == 0 ? 2 : 0);
             var art = (Grid)tile.Children[0];
             var scale = (ScaleTransform)art.RenderTransform;
-            // Small Loop scale stays within the 130px pitch; Fixed has 30px breathing room.
-            double factor = slot == 0 ? (Fixed ? 1.18 : 1.04) : (Fixed ? .92 : .96);
+            double factor = slot == 0 ? (Fixed ? 1.18 : LoopSelectedScale) : (Fixed ? .92 : .90);
+            if (slot == 0 && !Fixed)
+            {
+                titleFromX = x - destination + size * (scale.ScaleX - factor) / 2;
+                titleFromY = size * (scale.ScaleY - factor) / 2;
+            }
             Animate(scale, ScaleTransform.ScaleXProperty, scale.ScaleX, factor, animate);
             Animate(scale, ScaleTransform.ScaleYProperty, scale.ScaleY, factor, animate);
             if (Fixed)
@@ -131,9 +142,15 @@ public sealed class GameCarousel : System.Windows.Controls.UserControl
         _title.HorizontalAlignment = Fixed ? System.Windows.HorizontalAlignment.Stretch : System.Windows.HorizontalAlignment.Left;
         _title.VerticalAlignment = VerticalAlignment.Top;
         _title.TextAlignment = Fixed ? TextAlignment.Center : TextAlignment.Left;
-        _title.Margin = Fixed ? new Thickness(20, 16, 20, 0) : new Thickness(anchor + size + 8, 44 + size + 12, 20, 0);
+        _title.FontSize = Fixed ? 20 : LoopNameSize;
+        _title.Margin = Fixed ? new Thickness(20, 16, 20, 0) : new Thickness(anchor + size + size * (LoopSelectedScale - 1) / 2 + 4,
+            LoopStripTop + size + size * (LoopSelectedScale - 1) / 2 - 2, 20, 0);
+        if (_title.RenderTransform is not TranslateTransform) _title.RenderTransform = new TranslateTransform();
+        var titleMotion = (TranslateTransform)_title.RenderTransform;
+        Animate(titleMotion, TranslateTransform.XProperty, titleFromX, 0, animate);
+        Animate(titleMotion, TranslateTransform.YProperty, titleFromY, 0, animate);
         _title.MaxWidth = Fixed ? Math.Max(0, ActualWidth-40) : Math.Max(0, ActualWidth-anchor-size-28);
-        _title.BeginAnimation(OpacityProperty, new DoubleAnimation(.65, 1, animate ? TransitionDuration : TimeSpan.Zero));
+        _title.BeginAnimation(OpacityProperty, new DoubleAnimation(.65, 1, animate ? TransitionDuration : TimeSpan.Zero) { EasingFunction = Ease() });
     }
     private Grid CreateTile(GameItem game, double size)
     {

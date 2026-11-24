@@ -24,7 +24,7 @@ public class LaunchFlowTests
         for(int i=0;i<300 && !vm.PlayCommand.CanExecute(null);i++) await Task.Delay(10);
         Assert.True(vm.PlayCommand.CanExecute(null));
         string[] actual; lock(events) actual=events.ToArray();
-        Assert.Equal(fullscreen ? (fail ? new[]{"prepare","launch","restore","error"} : new[]{"prepare","launch","success"}) : new[]{"launch"},actual);
+        Assert.Equal(fail ? new[]{"prepare","launch","restore","error"} : new[]{"prepare","launch","success"},actual);
         Assert.Equal(fail ? 0 : 1,vm.SelectedGame.LaunchCount);
     }
     internal sealed class Library : IGameLibraryService

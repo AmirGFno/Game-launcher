@@ -102,5 +102,18 @@ public sealed class ArtworkPipelineTests : IDisposable
         Assert.True(File.Exists(manual)); Assert.True(File.Exists(Path.Combine(_root,"library.json")));
         Assert.False(File.Exists(owned));
     }
+    [Fact]
+    public async Task SteamHttp403FallsBackToValidated200()
+    {
+        int calls = 0;
+        using var client = new HttpClient(new Handler(_ => ++calls == 1
+            ? new HttpResponseMessage(HttpStatusCode.Forbidden)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageBytes(true)) }));
+        var path = await SteamScannerService.GetArtworkAsync(570, false, default, null,
+            (url, stem, token) => ImageDownloader.DownloadCoreAsync(client, url, _root, stem, token), _root);
+        Assert.NotNull(path); Assert.Equal(2, calls);
+        ImageDownloader.ValidateImageFile(path!);
+        Assert.Empty(Directory.GetFiles(_root, "*.part"));
+    }
     public void Dispose() => Directory.Delete(_root,true);
 }
