@@ -598,6 +598,9 @@ public partial class MainWindow : Window
         _viewModel.Settings = _settings;
         Carousel.StyleMode = _settings.CarouselStyle;
         MaximizeButton.Visibility = _settings.Fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        // Fullscreen bounds are monitor/DPI-sized; windowed minimums must not enlarge a small monitor.
+        MinWidth = _settings.Fullscreen ? 0 : 800;
+        MinHeight = _settings.Fullscreen ? 0 : 600;
         if (_settings.Fullscreen && !_fullscreenApplied)
         {
             _beforeFullscreen = WindowState;

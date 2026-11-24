@@ -349,11 +349,12 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
+            // Ask owned processes to release their handles before deleting scoped cache files.
+            string processes = await _launcher.CloseTrackedAsync(cancellationToken);
             CleanupResult result = await _tempCleaner
                 .CleanAsync(_progress, cancellationToken)
                 .ConfigureAwait(true);
 
-            string processes = await _launcher.CloseTrackedAsync(cancellationToken);
             _dialog.ShowInfo(
                 "Cache cleaned",
                 $"Removed {result.Deleted} item(s), skipped {result.Skipped}.\n{processes}");
