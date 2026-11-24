@@ -706,7 +706,8 @@ public partial class MainWindow : Window
         Topmost = false; // Never pin the launcher above the game taking focus.
         // Pin the selected game's art, never an older asynchronous background request.
         int generation = ++_backgroundGeneration;
-        var image = await ImageLoader.LoadAsync(game.BackgroundPath, ImageLoader.MaxBackgroundWidth);
+        var load = ImageLoader.LoadAsync(game.BackgroundPath, ImageLoader.MaxBackgroundWidth);
+        var image = await load;
         if (generation == _backgroundGeneration)
         {
             BackgroundBack.BeginAnimation(OpacityProperty, null); BackgroundFront.BeginAnimation(OpacityProperty, null);

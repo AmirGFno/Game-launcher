@@ -68,7 +68,7 @@ public sealed class ArtworkPipelineTests : IDisposable
         {
             calls++;
             if(calls<3) throw new HttpRequestException("Unavailable");
-            Assert.EndsWith("capsule_616x353.jpg",url);
+            Assert.Contains("shared.cloudflare.steamstatic.com",url);
             Assert.Equal("steam_570_logo",stem);
             await File.WriteAllBytesAsync(path,ImageBytes(true),token);
             return path;

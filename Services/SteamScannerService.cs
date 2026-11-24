@@ -43,9 +43,13 @@ public sealed class SteamScannerService
             root = Directory.GetParent(root.TrimEnd(Path.DirectorySeparatorChar))!.FullName;
         var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { root };
         string libraries = Path.Combine(root,"steamapps","libraryfolders.vdf");
+        try
+        {
         if (File.Exists(libraries) && new FileInfo(libraries).Length < 4*1024*1024)
             foreach (Match match in Regex.Matches(File.ReadAllText(libraries), "\"path\"\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)))
                 roots.Add(match.Groups[1].Value.Replace(@"\\", @"\"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { System.Diagnostics.Debug.WriteLine(ex); }
         return roots.SelectMany(path => {
             try { return ReadManifests(Path.Combine(path,"steamapps")); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return Array.Empty<SteamGame>(); }
@@ -62,7 +66,7 @@ public sealed class SteamScannerService
         string[] files = hero ? new[] { "library_hero.jpg", "page_bg_generated_v6b.jpg", "header.jpg" }
             : new[] { "library_600x900.jpg", "library_capsule.jpg", "capsule_616x353.jpg", "header.jpg", "logo.png" };
         string[] roots = { "https://cdn.cloudflare.steamstatic.com/steam/apps/", "https://cdn.akamai.steamstatic.com/steam/apps/", "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/" };
-        foreach (string root in roots) foreach (string file in files) yield return $"{root}{id}/{file}";
+        foreach (string file in files) foreach (string root in roots) yield return $"{root}{id}/{file}";
     }
     public async Task<GameItem> CreateAsync(SteamGame game, CancellationToken token, IProgress<string>? progress = null)
     {
@@ -79,19 +83,21 @@ public sealed class SteamScannerService
     {
         string stem = $"steam_{id}_{(hero ? "hero" : "logo")}";
         directory ??= ImageDownloader.ImagesDirectory;
-        if (Directory.Exists(directory) && Directory.GetFiles(directory, stem + "_repaired.*").Any()) stem += "_repaired";
+        bool collision = false;
+        foreach (string candidateStem in new[] { stem, stem + "_repaired" })
         foreach (string extension in new[] { ".jpg", ".png", ".webp", ".gif", ".bmp", ".ico" })
         {
-            string cached = Path.Combine(directory,stem+extension);
+            string cached = Path.Combine(directory,candidateStem+extension);
             if (!File.Exists(cached)) continue;
             try { await Task.Run(() => ImageDownloader.ValidateImageFile(cached),token); return cached; }
             catch (OperationCanceledException) { throw; }
             catch (Exception)
             {
-                // A legacy/manual corrupt file must not block every candidate, nor be overwritten.
-                if (!File.Exists(cached + ".downloaded")) stem += "_repaired";
+                if (candidateStem == stem && !File.Exists(cached + ".downloaded")) collision = true;
             }
         }
+        // Retain corrupt unowned legacy art, but do not let its filename block all CDN candidates.
+        if (collision) stem += "_repaired";
         download ??= ImageDownloader.DownloadStableAsync;
         // Bound the whole fallback matrix, not just each HTTP request (formerly many minutes per game).
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -102,7 +108,12 @@ public sealed class SteamScannerService
             token.ThrowIfCancellationRequested();
             progress?.Report($"Steam {id}: downloading {(hero ? "background" : "logo")} (attempt {++attempt})…");
             if (budget.IsCancellationRequested) break;
-            try { return await download(url,stem,budget.Token); }
+            try
+            {
+                using var attemptDeadline = CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                attemptDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+                return await download(url,stem,attemptDeadline.Token);
+            }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Steam artwork failed: {url}: {ex.Message}"); }
         }

@@ -46,6 +46,7 @@ public sealed class GameProcessWatcher
         bool Ready()
         {
             observations++;
+            if (direct && ObserveOwnedChildren()) return true;
             if (direct && started is not null)
             {
                 try
@@ -85,6 +86,34 @@ public sealed class GameProcessWatcher
         // yield the screen anyway rather than covering Steam prompts for up to 90 seconds.
         bool detected = await PollAsync(Ready, direct ? 12 : 8, ct => Task.Delay(1000, ct), token).ConfigureAwait(false);
         if (!detected && direct) throw new InvalidOperationException("The executable exited before a running game could be confirmed. The launcher has been restored.");
+    }
+
+    private bool ObserveOwnedChildren()
+    {
+        var parents = ProcessTree.Parents();
+        KeyValuePair<int, (DateTime Start, string Path)>[] identities;
+        lock (_owned) identities = _owned.ToArray();
+        bool childRunning = false;
+        foreach (var parent in identities)
+        {
+            try
+            {
+                using var owner = Process.GetProcessById(parent.Key);
+                if (owner.StartTime.ToUniversalTime() != parent.Value.Start || owner.HasExited) continue;
+                foreach (int pid in parents.Where(p => p.Value == parent.Key).Select(p => p.Key))
+                {
+                    using var child = Process.GetProcessById(pid);
+                    var start = child.StartTime.ToUniversalTime();
+                    string? path = child.MainModule?.FileName;
+                    if (path is null || start < parent.Value.Start || child.HasExited ||
+                        string.Equals(child.ProcessName, "steam", StringComparison.OrdinalIgnoreCase)) continue;
+                    lock (_owned) _owned[pid] = (start, path);
+                    childRunning |= child.MainWindowHandle != IntPtr.Zero;
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        }
+        return childRunning;
     }
 
     public Task<string> CloseTrackedAsync(CancellationToken token) => Task.Run(async () =>
