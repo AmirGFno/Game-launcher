@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:GameLauncher.Controls"
         Title="GFno Launcher"
-        Width="1280" Height="800"
+        Width="1280" Height="800" MinWidth="800" MinHeight="600"
         WindowStyle="None"
         AllowsTransparency="True"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Icon="Assets/icon.ico"
         Background="#FF0B0E14"
@@ -128,7 +128,7 @@
                         <Path Data="M3,12.5 H13" Stroke="White" StrokeThickness="1.2"
                               Width="16" Height="16" Stretch="Uniform" />
                     </Button>
-                    <Button Style="{StaticResource ChromeButtonStyle}" ToolTip="Maximize"
+                    <Button x:Name="MaximizeButton" Style="{StaticResource ChromeButtonStyle}" ToolTip="Maximize"
                             Click="MaximizeButton_Click">
                         <Path x:Name="MaximizeIcon" Data="M3,3 H13 V13 H3 Z" Stroke="White"
                               StrokeThickness="1.2" Fill="Transparent"
@@ -188,7 +188,7 @@
         <Grid x:Name="BottomBar" Height="96" VerticalAlignment="Bottom" Panel.ZIndex="6">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
                     Margin="0,0,28,28" Panel.ZIndex="6">
-            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Clean the app cache (optional)"
+            <Button Style="{StaticResource ActionButtonStyle}" ToolTip="Clean scoped temp/cache and tracked processes"
                     Command="{Binding CleanCacheCommand}" Margin="0,0,10,0">
                 <Path Data="M8,2.5 L9.3,6.7 L13.5,8 L9.3,9.3 L8,13.5 L6.7,9.3 L2.5,8 L6.7,6.7 Z"
                       Fill="#FFFFFFFF" Width="16" Height="16" Stretch="Uniform" IsHitTestVisible="False" />

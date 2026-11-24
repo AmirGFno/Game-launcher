@@ -7,8 +7,9 @@ PlayStation-5-inspired carousel.
 
 ![theme](https://img.shields.io/badge/theme-PS5--style-0b0e14) ![platform](https://img.shields.io/badge/platform-Windows-0070d1) ![framework](https://img.shields.io/badge/.NET-10-512bd4)
 
-> **v2.0.0** — stable release. The backend has been safety-hardened and modernised
-> (Phase 1–2 of the roadmap). The React + WebView2 frontend (Phase 3–6) is the next increment.
+> **v2.2.0 implementation branch** — native WPF follow-up to v2.1.3; not a published release.
+> Unified fullscreen bars, asynchronous launch readiness, revised carousels and hardened Steam/cache handling.
+> See [implementation and Windows acceptance checklist](docs/v2.2.0-validation.md). No web frontend migration.
 
 ---
 
@@ -24,9 +25,12 @@ PlayStation-5-inspired carousel.
   `%LocalAppData%\GameLauncher\Images`.
 - **Launch your way** — press **Enter** or **double-click** a logo. `←` / `→` and the mouse
   wheel browse the library; a single click selects.
-- **Buttery animations** — scale-up of the selected tile (a pure `RenderTransform`, so it never
-  reflows the row), a pulsing glow tinted with the logo's **dominant colour**, cross-fading
-  backgrounds and a slide-up title.
+- **Two native carousel styles** — Loop uses a larger square selection, synchronized title and
+  strong edge fades; Fixed Anchor uses a centered title, white selected-only glow and no edge fade.
+  Scaling uses `RenderTransform`; selection animations are interruptible.
+- **Launch readiness** — background-only launch presentation, asynchronous process observation,
+  then taskbar minimization (optional tray). The launcher stays running.
+- **Steam libraries** — automatic/manual discovery, AppID deduplication and validated multi-CDN artwork repair.
 - **Bounded artwork cache** — logos and wallpapers are decoded on a worker thread, downscaled
   while decoding (max **1920px** backgrounds, **256px** logos) and cached with a **256 MB**
   budget and write-time/size invalidation. Every decoded bitmap is frozen before it is bound.
@@ -206,12 +210,9 @@ Two workflows live in [`.github/workflows`](.github/workflows):
 
 ### Trigger a release
 
-```powershell
-git commit -am "Release v2.0.0"
-git tag v2.0.0
-git push origin main
-git push origin v2.0.0
-```
+Only after explicit release approval: merge the reviewed PR, create a new version tag matching
+`GameLauncher.csproj`, and push that tag to trigger the workflow. Never overwrite shipped tags.
+This implementation does not create a 2.2.0 tag or release.
 
 ### Building the installer locally
 
@@ -223,21 +224,11 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ---
 
-## Roadmap (v2)
+## Native WPF follow-up
 
-Phase 1–2 are complete. The remaining phases are incremental:
-
-1. **Audit & preservation** — done.
-2. **Backend safety & modernisation** — done (safe cleanup, no admin, .NET 10, atomic
-   persistence, bounded cache, download validation, target allowlist, editor metadata, tests).
-3. **Frontend architecture** — React + TypeScript + Vite frontend hosted in WebView2, with a
-   typed, allowlisted message bridge and packaged local assets.
-4. **UI redesign** — dashboard/hero, carousel, library (grid + search + sort + favourites),
-   game details, editor, settings.
-5. **Performance features** — quick launch, per-game launch profiles, optional startup
-   preparation, lightweight process monitoring, real recommendations.
-6. **Final testing & release** — migration tests, portable + installer verification,
-   resolution/DPI checks.
+The existing C#/WPF architecture, local JSON data, tray/single-instance behavior and custom artwork
+remain in place. Remaining acceptance work is real-game process observation, live Steam CDN access,
+and interactive DPI/multi-monitor validation; see `docs/v2.2.0-validation.md`.
 
 ---
 

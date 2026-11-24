@@ -55,7 +55,10 @@ public class CarouselRenderTests
                             Assert.Null(art.Effect);
                             Assert.False(Assert.IsType<AsyncImage>(art.Children[1]).Desaturate);
                         }
+                        Assert.IsType<System.Windows.Media.LinearGradientBrush>(canvas.OpacityMask);
+                        Assert.Contains(canvas.Children.OfType<Grid>(), h => ((System.Windows.Media.ScaleTransform)((Grid)h.Children[0]).RenderTransform).ScaleX > 1.2);
                         carousel.StyleMode="FixedAnchor";
+                        Assert.Null(canvas.OpacityMask);
                         Assert.Equal("Game 0",carousel.DisplayedTitle);
                         var effects=canvas.Children.OfType<Grid>().Select(h => ((Grid)h.Children[0]).Effect).OfType<System.Windows.Media.Effects.DropShadowEffect>().ToArray();
                         Assert.Single(effects);

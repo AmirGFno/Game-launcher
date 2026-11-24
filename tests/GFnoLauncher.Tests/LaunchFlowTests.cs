@@ -24,8 +24,34 @@ public class LaunchFlowTests
         for(int i=0;i<300 && !vm.PlayCommand.CanExecute(null);i++) await Task.Delay(10);
         Assert.True(vm.PlayCommand.CanExecute(null));
         string[] actual; lock(events) actual=events.ToArray();
-        Assert.Equal(fullscreen ? (fail ? new[]{"prepare","launch","restore","error"} : new[]{"prepare","launch","success"}) : new[]{"launch"},actual);
+        Assert.Equal(fail ? new[]{"prepare","launch","restore","error"} : new[]{"prepare","launch","success"},actual);
         Assert.Equal(fail ? 0 : 1,vm.SelectedGame.LaunchCount);
+    }
+    [Fact]
+    public async Task LauncherDoesNotSignalMinimizeUntilReadinessCompletes()
+    {
+        var waiting = new WaitingLauncher();
+        var vm = new MainViewModel(new Library(), new Cleaner(), waiting, new Dialogs());
+        vm.SelectedGame = new GameItem { Title="Waiting", LaunchTarget="game.exe" };
+        bool prepared = false, minimized = false;
+        vm.PrepareFullscreenLaunchAsync = _ => { prepared = true; return Task.CompletedTask; };
+        vm.FullscreenLaunchFinished += (_, success) => minimized = success;
+        vm.PlayCommand.Execute(null);
+        await waiting.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(prepared); Assert.False(minimized);
+        waiting.Ready.SetResult();
+        for (int i=0; i<200 && !vm.PlayCommand.CanExecute(null); i++) await Task.Delay(10);
+        Assert.True(minimized); Assert.Equal(1, vm.SelectedGame.LaunchCount);
+    }
+    private sealed class WaitingLauncher : IGameLauncherService
+    {
+        public TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Launch(GameItem game) { }
+        public async Task LaunchAndWaitAsync(GameItem game, CancellationToken token)
+        {
+            Entered.SetResult(); await Ready.Task.WaitAsync(token);
+        }
     }
     internal sealed class Library : IGameLibraryService
     {

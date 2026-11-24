@@ -35,9 +35,9 @@ public partial class MainWindow : Window
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _isQuitting;
     private bool _fullscreenLaunching;
-    private readonly DispatcherTimer _edgeTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
-    private DateTime _topSeen, _bottomSeen;
-    private bool _topShown, _bottomShown;
+    private readonly DispatcherTimer _edgeTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private DateTime _barsSeen;
+    private bool? _barsVisible;
     private readonly LauncherSettingsService _settingsService = new();
     private LauncherSettings _settings = new();
     private WindowState _beforeFullscreen;
@@ -529,7 +529,7 @@ public partial class MainWindow : Window
 
         if (e.ButtonState == MouseButtonState.Pressed)
         {
-            DragMove();
+            if (!_settings.Fullscreen) DragMove();
         }
     }
 
@@ -565,12 +565,14 @@ public partial class MainWindow : Window
 
     private void ToggleMaximize()
     {
+        if (_settings.Fullscreen) return;
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         UpdateMaximizeIcon();
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
     {
+        if (WindowState != WindowState.Minimized && !_viewModel.IsCleaning) RestoreLaunchChrome();
         UpdateMaximizeIcon();
     }
 
@@ -595,6 +597,10 @@ public partial class MainWindow : Window
     {
         _viewModel.Settings = _settings;
         Carousel.StyleMode = _settings.CarouselStyle;
+        MaximizeButton.Visibility = _settings.Fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        // Fullscreen bounds are monitor/DPI-sized; windowed minimums must not enlarge a small monitor.
+        MinWidth = _settings.Fullscreen ? 0 : 800;
+        MinHeight = _settings.Fullscreen ? 0 : 600;
         if (_settings.Fullscreen && !_fullscreenApplied)
         {
             _beforeFullscreen = WindowState;
@@ -604,7 +610,7 @@ public partial class MainWindow : Window
             var monitor = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
             var dpi = VisualTreeHelper.GetDpi(this);
             WindowState = WindowState.Normal;
-            ResizeMode = ResizeMode.NoResize;
+            ResizeMode = ResizeMode.CanMinimize;
             Left = monitor.Bounds.Left / dpi.DpiScaleX;
             Top = monitor.Bounds.Top / dpi.DpiScaleY;
             Width = monitor.Bounds.Width / dpi.DpiScaleX;
@@ -618,14 +624,13 @@ public partial class MainWindow : Window
             Left = _windowedBounds.Left; Top = _windowedBounds.Top;
             Width = _windowedBounds.Width; Height = _windowedBounds.Height;
             WindowState = _beforeFullscreen;
-            ResizeMode = ResizeMode.NoResize;
+            ResizeMode = ResizeMode.CanResize;
         }
         _fullscreenApplied = _settings.Fullscreen;
         HeaderBar.Visibility = Visibility.Visible;
         HeaderRow.Height = new GridLength(64);
-        _topSeen = _bottomSeen = DateTime.MinValue;
-        SetBar(HeaderBar, !_settings.Fullscreen, true);
-        SetBar(BottomBar, !_settings.Fullscreen, false);
+        _barsSeen = DateTime.MinValue;
+        SetBars(!_settings.Fullscreen);
         if (_settings.Fullscreen) _edgeTimer.Start(); else _edgeTimer.Stop();
     }
     private void Settings_Click(object sender,RoutedEventArgs e)
@@ -667,37 +672,45 @@ public partial class MainWindow : Window
     {
         if (!_settings.Fullscreen || _fullscreenLaunching) return;
         double y = e.GetPosition(this).Y;
-        if (y <= 10 || (_topShown && y <= 72)) _topSeen = DateTime.UtcNow;
-        if (y >= ActualHeight - 10 || (_bottomShown && y >= ActualHeight - 100)) _bottomSeen = DateTime.UtcNow;
+        if (y <= 10 || y >= ActualHeight - 10 || HeaderBar.IsMouseOver || BottomBar.IsMouseOver)
+            _barsSeen = DateTime.UtcNow;
         UpdateEdgeBars();
     }
     private void UpdateEdgeBars()
     {
         if (!_settings.Fullscreen || _fullscreenLaunching) return;
-        SetBar(HeaderBar, DateTime.UtcNow - _topSeen < TimeSpan.FromMilliseconds(600), true);
-        SetBar(BottomBar, DateTime.UtcNow - _bottomSeen < TimeSpan.FromMilliseconds(600), false);
+        if (HeaderBar.IsMouseOver || BottomBar.IsMouseOver) _barsSeen = DateTime.UtcNow;
+        SetBars(DateTime.UtcNow - _barsSeen < TimeSpan.FromMilliseconds(400));
     }
-    private void SetBar(FrameworkElement bar, bool show, bool top)
+    private void SetBars(bool show)
     {
-        bool previous = top ? _topShown : _bottomShown;
-        if (top) _topShown = show; else _bottomShown = show;
-        bar.IsHitTestVisible = show;
-        if (previous == show && bar.Opacity == (show ? 1 : 0)) return;
-        bar.BeginAnimation(OpacityProperty, new DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(180)));
-        if (bar.RenderTransform is not TranslateTransform) bar.RenderTransform = new TranslateTransform();
-        ((TranslateTransform)bar.RenderTransform).BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(show ? 0 : (top ? -8 : 8), TimeSpan.FromMilliseconds(180)));
+        if (_barsVisible == show) return; // One state transition, not a restart on each timer tick.
+        _barsVisible = show;
+        foreach (var bar in new[] { HeaderBar, BottomBar })
+        {
+            bar.IsHitTestVisible = show;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            bar.BeginAnimation(OpacityProperty, new DoubleAnimation(bar.Opacity, show ? 1 : 0,
+                TimeSpan.FromMilliseconds(150)) { EasingFunction = ease }, HandoffBehavior.SnapshotAndReplace);
+            if (bar.RenderTransform is not TranslateTransform) bar.RenderTransform = new TranslateTransform();
+            var translate = (TranslateTransform)bar.RenderTransform;
+            translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(translate.Y,
+                show ? 0 : (bar == HeaderBar ? -8 : 8), TimeSpan.FromMilliseconds(150)) { EasingFunction = ease },
+                HandoffBehavior.SnapshotAndReplace);
+        }
     }
     private async Task PrepareFullscreenLaunchAsync(GameItem game)
     {
         _fullscreenLaunching = true;
         _spinnerTimer.Stop();
+        SetBars(false);
         ChromeRoot.Visibility = Visibility.Hidden;
         IsEnabled = false;
         Topmost = false; // Never pin the launcher above the game taking focus.
         // Pin the selected game's art, never an older asynchronous background request.
         int generation = ++_backgroundGeneration;
-        var image = await ImageLoader.LoadAsync(game.BackgroundPath, ImageLoader.MaxBackgroundWidth);
+        var load = ImageLoader.LoadAsync(game.BackgroundPath, ImageLoader.MaxBackgroundWidth);
+        var image = await load;
         if (generation == _backgroundGeneration)
         {
             BackgroundBack.BeginAnimation(OpacityProperty, null); BackgroundFront.BeginAnimation(OpacityProperty, null);
@@ -710,7 +723,7 @@ public partial class MainWindow : Window
     {
         if (success)
         {
-            if (_settings.CloseToTray && _trayIcon is not null) Hide();
+            if (_settings.MinimizeToTrayOnLaunch && _trayIcon is not null) Hide();
             else WindowState = WindowState.Minimized;
         }
         RestoreLaunchChrome();
@@ -718,8 +731,8 @@ public partial class MainWindow : Window
     private void RestoreLaunchChrome()
     {
         _fullscreenLaunching = false; IsEnabled = true; ChromeRoot.Visibility = Visibility.Visible;
-        _topSeen = _bottomSeen = DateTime.MinValue;
-        SetBar(HeaderBar, !_settings.Fullscreen, true); SetBar(BottomBar, !_settings.Fullscreen, false);
+        _barsSeen = DateTime.UtcNow;
+        SetBars(true);
     }
 
 }

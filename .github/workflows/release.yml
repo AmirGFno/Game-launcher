@@ -231,28 +231,27 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          name: "GFno Launcher 2.1.3"
+          name: "GFno Launcher 2.2.0"
           draft: false
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
           files: |
-            GFnoLauncher-2.1.3-win-x64-portable.zip
-            GFnoLauncher-Setup-2.1.3.exe
+            GFnoLauncher-2.2.0-win-x64-portable.zip
+            GFnoLauncher-Setup-2.2.0.exe
             SHA256SUMS.txt
           body: |
-            ## Native WPF 2.1.3
+            ## Native WPF 2.2.0
 
-            - Interruptible dual carousel layouts with immediate selected titles and aligned background transitions.
-            - Loop Style: square compact tiles, third-slot anchor, bottom-right title and no glow.
-            - Fixed Anchor: original WPF proportions, center-top title and subtle selected-only white glow.
-            - Fixed image downloads: close the exclusive writer before validation, browser headers,
-              streamed-body timeout and size limits, content sniffing and atomic file promotion.
-            - Unified ImageSharp WebP decoding, including WebP behind misleading file extensions.
-            - Steam multi-CDN fallbacks, stable AppID artwork cache and missing-art repair.
-            - Native card-style Settings/Editor with artwork previews and preserved capabilities.
-            - Fullscreen edge-reveal controls and background-only launching with failure restoration.
+            - Unified fullscreen edge bars and fullscreen Minimize/Close-only chrome.
+            - Background-only launch with asynchronous process readiness observation; minimizes without exiting.
+            - Taskbar minimization by default, with a separate opt-in launch-to-tray setting.
+            - Lower Loop strip, larger selection, synchronized smaller title and strong edge fades.
+            - Fixed Anchor retains white selection glow with no edge fading.
+            - Steam validation/repair, bounded multi-CDN fallback and install-directory metadata.
+            - Manual scoped-cache cleanup plus graceful close of verified session-owned processes.
+            - Existing WebP pipeline, local library, custom artwork and native dark dialogs preserved.
 
             No React, WebView2 or Node.js. Existing user-data paths and standard-user execution retained.
-            See docs/v2.1.3-validation.md for test scope and required manual Windows checks.
+            See docs/v2.2.0-validation.md for test scope and required manual Windows checks.
             ImageSharp remains 3.1.12 with known advisories; avoid untrusted images.

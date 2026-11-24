@@ -84,11 +84,25 @@ public sealed class TempCleanerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LockedNestedFileDoesNotPreventCleaningItsSiblings()
+    {
+        string folder = Path.Combine(_root, "nested"); Directory.CreateDirectory(folder);
+        string locked = Path.Combine(folder, "locked.txt"), removable = Path.Combine(folder, "remove.txt");
+        File.WriteAllText(locked, "keep"); File.WriteAllText(removable, "delete");
+        using var handle = File.Open(locked, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var result = await new TempCleanerService(_root).CleanAsync(Silent());
+        Assert.True(File.Exists(locked)); Assert.False(File.Exists(removable));
+        Assert.Equal(1, result.Skipped);
+    }
+
+    [Fact]
     public async Task Clean_doesNotFollowJunctions()
     {
         string target = Path.Combine(AppContext.BaseDirectory, "gfno-junction-target-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(target);
-        string link = Path.Combine(_root, "linked");
+        string parent = Path.Combine(_root, "nested");
+        Directory.CreateDirectory(parent);
+        string link = Path.Combine(parent, "linked");
 
         try
         {

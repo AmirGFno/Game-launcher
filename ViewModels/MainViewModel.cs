@@ -233,18 +233,21 @@ public sealed class MainViewModel : ObservableObject
             {
                 token.ThrowIfCancellationRequested();
                 var existing = Games.FirstOrDefault(g => SteamScannerService.AppIdFromTarget(g.LaunchTarget) == steam.AppId);
-                if (existing is not null && System.IO.File.Exists(existing.LogoPath) && System.IO.File.Exists(existing.BackgroundPath)) continue;
+                bool logoValid = existing is not null && await IsValidArtworkAsync(existing.LogoPath);
+                bool heroValid = existing is not null && await IsValidArtworkAsync(existing.BackgroundPath);
+                if (existing is not null) existing.SteamInstallDirectory = steam.InstallDirectory;
+                if (logoValid && heroValid) { await PersistAsync(); continue; }
                 StatusMessage=$"Importing {steam.Name}…";
                 var game=await scanner.CreateAsync(steam,token,_progress);
                 if (game.LogoPath is null || game.BackgroundPath is null) missingArtwork++;
                 if (existing is null) { Games.Add(game); count++; }
                 else
                 {
-                    if (!System.IO.File.Exists(existing.LogoPath)) existing.LogoPath = game.LogoPath;
-                    if (!System.IO.File.Exists(existing.BackgroundPath)) existing.BackgroundPath = game.BackgroundPath;
+                    if (!logoValid) existing.LogoPath = game.LogoPath;
+                    if (!heroValid) existing.BackgroundPath = game.BackgroundPath;
                     repaired++;
                 }
-                SelectedGame ??= game;
+                SelectedGame ??= existing ?? game;
                 await PersistAsync();
             }
             _dialog.ShowInfo("Steam scan", $"Added {count} games; retried artwork for {repaired} existing games. {missingArtwork} games still have unavailable artwork. Existing metadata and manual artwork were preserved.");
@@ -253,6 +256,12 @@ public sealed class MainViewModel : ObservableObject
         catch(Exception ex) { _dialog.ShowError("Steam scan failed",ex.Message); }
         finally { _steamScan=null; IsCleaning=false; StatusMessage=string.Empty; }
     }
+
+    private static Task<bool> IsValidArtworkAsync(string? path) => Task.Run(() =>
+    {
+        try { if (path is null) return false; ImageDownloader.ValidateImageFile(path); return true; }
+        catch { return false; }
+    });
 
     public Func<GameItem, Task>? PrepareFullscreenLaunchAsync { get; set; }
     public event EventHandler<bool>? FullscreenLaunchFinished;
@@ -265,22 +274,21 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        // The launch path is deliberately lightweight: no cleanup, no artificial
-        // delay - just start the process and record the launch.
+        // Hide chrome before starting, observe readiness asynchronously, then yield the screen.
+        // Manual process cleanup is never part of the optional prelaunch cache cleanup.
         IsCleaning = true;
         StatusMessage = $"Launching {game.Title}...";
-        bool fullscreen = Settings.Fullscreen;
         bool started = false;
         try
         {
-            if (fullscreen && PrepareFullscreenLaunchAsync is not null)
+            if (PrepareFullscreenLaunchAsync is not null)
                 await PrepareFullscreenLaunchAsync(game);
             if (Settings.CleanCacheBeforeLaunch)
                 await _tempCleaner.CleanAsync(_progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Run(() => _launcher.Launch(game), cancellationToken);
+            await _launcher.LaunchAndWaitAsync(game, cancellationToken);
             started = true;
-            if (fullscreen) FullscreenLaunchFinished?.Invoke(this, true);
+            FullscreenLaunchFinished?.Invoke(this, true);
 
             game.LastPlayed = DateTime.Now;
             game.LaunchCount++;
@@ -288,12 +296,12 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
+            if (!started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             StatusMessage = "Cancelled.";
         }
         catch (Exception ex)
         {
-            if (fullscreen && !started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
+            if (!started) { IsCleaning = false; FullscreenLaunchFinished?.Invoke(this, false); }
             _dialog.ShowError("Could not launch the game", ex.Message);
         }
         finally
@@ -324,15 +332,10 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        if (preview.EntryCount == 0)
-        {
-            _dialog.ShowInfo("Cache is empty", "There is nothing to clean.");
-            return;
-        }
-
         double megabytes = preview.TotalBytes / (1024.0 * 1024.0);
         bool confirmed = _dialog.Confirm(
             "Clean cache",
+            "Temp will be cleaned and processes launched by GFno may be closed. Continue?\n\n" +
             $"Delete {preview.EntryCount} item(s) ({megabytes:0.0} MB) from the GFno Launcher cache?\n\n" +
             $"Only the app's own cache folder is touched:\n{_tempCleaner.CacheDirectory}");
 
@@ -346,13 +349,15 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
+            // Ask owned processes to release their handles before deleting scoped cache files.
+            string processes = await _launcher.CloseTrackedAsync(cancellationToken);
             CleanupResult result = await _tempCleaner
                 .CleanAsync(_progress, cancellationToken)
                 .ConfigureAwait(true);
 
             _dialog.ShowInfo(
                 "Cache cleaned",
-                $"Removed {result.Deleted} item(s), skipped {result.Skipped}.");
+                $"Removed {result.Deleted} item(s), skipped {result.Skipped}.\n{processes}");
         }
         catch (OperationCanceledException)
         {

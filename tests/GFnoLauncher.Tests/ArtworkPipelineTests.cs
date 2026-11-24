@@ -68,7 +68,7 @@ public sealed class ArtworkPipelineTests : IDisposable
         {
             calls++;
             if(calls<3) throw new HttpRequestException("Unavailable");
-            Assert.EndsWith("capsule_616x353.jpg",url);
+            Assert.Contains("shared.cloudflare.steamstatic.com",url);
             Assert.Equal("steam_570_logo",stem);
             await File.WriteAllBytesAsync(path,ImageBytes(true),token);
             return path;
@@ -101,6 +101,36 @@ public sealed class ArtworkPipelineTests : IDisposable
         Assert.Equal(1,result.Deleted);
         Assert.True(File.Exists(manual)); Assert.True(File.Exists(Path.Combine(_root,"library.json")));
         Assert.False(File.Exists(owned));
+    }
+    [Fact]
+    public async Task SteamHttp403FallsBackToValidated200()
+    {
+        int calls = 0;
+        using var client = new HttpClient(new Handler(_ => ++calls == 1
+            ? new HttpResponseMessage(HttpStatusCode.Forbidden)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageBytes(true)) }));
+        var path = await SteamScannerService.GetArtworkAsync(570, false, default, null,
+            (url, stem, token) => ImageDownloader.DownloadCoreAsync(client, url, _root, stem, token), _root);
+        Assert.NotNull(path); Assert.Equal(2, calls);
+        ImageDownloader.ValidateImageFile(path!);
+        Assert.Empty(Directory.GetFiles(_root, "*.part"));
+    }
+    [Fact]
+    public async Task CorruptUnownedSteamCacheDoesNotBlockRepairOrGetDeleted()
+    {
+        string old = Path.Combine(_root, "steam_570_logo.png");
+        await File.WriteAllTextAsync(old, "corrupt legacy image");
+        using var client = new HttpClient(new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageBytes(false)) }));
+        int calls = 0;
+        Task<string> Download(string url, string stem, CancellationToken token)
+        {
+            calls++; return ImageDownloader.DownloadCoreAsync(client, url, _root, stem, token);
+        }
+        string? repaired = await SteamScannerService.GetArtworkAsync(570, false, default, null, Download, _root);
+        Assert.Contains("_repaired", repaired!);
+        Assert.Equal("corrupt legacy image", await File.ReadAllTextAsync(old));
+        Assert.Equal(repaired, await SteamScannerService.GetArtworkAsync(570, false, default, null, Download, _root));
+        Assert.Equal(1, calls);
     }
     public void Dispose() => Directory.Delete(_root,true);
 }

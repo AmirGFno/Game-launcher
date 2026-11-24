@@ -12,12 +12,12 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent(); _service = service; Settings = settings.Clone();
         Loop.IsChecked = settings.CarouselStyle == "Loop"; Anchor.IsChecked = !Loop.IsChecked;
-        Fullscreen.IsChecked=settings.Fullscreen; Cleanup.IsChecked=settings.CleanCacheBeforeLaunch; Tray.IsChecked=settings.CloseToTray;
+        Fullscreen.IsChecked=settings.Fullscreen; Cleanup.IsChecked=settings.CleanCacheBeforeLaunch; Tray.IsChecked=settings.CloseToTray; LaunchTray.IsChecked=settings.MinimizeToTrayOnLaunch;
     }
     private void Save_Click(object sender,RoutedEventArgs e)
     {
         Settings.CarouselStyle = Anchor.IsChecked == true ? "FixedAnchor" : "Loop";
-        Settings.Fullscreen=Fullscreen.IsChecked==true; Settings.CleanCacheBeforeLaunch=Cleanup.IsChecked==true; Settings.CloseToTray=Tray.IsChecked==true;
+        Settings.Fullscreen=Fullscreen.IsChecked==true; Settings.CleanCacheBeforeLaunch=Cleanup.IsChecked==true; Settings.CloseToTray=Tray.IsChecked==true; Settings.MinimizeToTrayOnLaunch=LaunchTray.IsChecked==true;
         try { _service.Save(Settings); DialogResult=true; }
         catch (Exception ex) { Result.Text="Could not save settings: " + ex.Message; }
     }
